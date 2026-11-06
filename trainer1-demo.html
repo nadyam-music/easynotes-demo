@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Нотный тренажёр (Демо)</title>
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.3/build/opensheetmusicdisplay.min.js"></script>
+<style>
+  :root{
+    --paper:#f6f3ec;
+    --ink:#2b2620;
+    --line:#3c362c;
+    --accent:#a8462f;
+    --accent-soft:#e6c9bd;
+    --good:#3f6b4a;
+    --bad:#a8462f;
+    --panel:#efe9dc;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Georgia', 'Times New Roman', serif;
+    background:var(--paper);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:12px 16px 40px;
+    min-height:100vh;
+  }
+  h1{
+    font-size:1.05rem;
+    font-weight:600;
+    letter-spacing:0.01em;
+    margin:0 0 6px;
+    white-space:nowrap;
+  }
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    width:100%;
+    max-width:1700px;
+    margin-bottom:10px;
+    flex-wrap:wrap;
+  }
+  .topbar-col{
+    display:flex;
+    flex-direction:column;
+  }
+  .topbar-left{ align-items:flex-start; }
+  .topbar-center{ align-items:center; flex:1; min-width:220px; }
+  .topbar-right{ align-items:flex-end; }
+  .level-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .score-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .score-actions{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .level-toggle{
+    display:flex;
+    gap:4px;
+    background:var(--panel);
+    padding:4px;
+    border-radius:4px;
+    border:1px solid #d8d0bd;
+    flex-wrap:wrap;
+  }
+  .level-toggle button{
+    font-family:inherit;
+    font-size:0.78rem;
+    padding:5px 9px;
+    border:none;
+    background:transparent;
+    color:var(--ink);
+    cursor:pointer;
+    border-radius:3px;
+    transition:background 0.15s;
+    position:relative;
+  }
+  .level-toggle button.active{
+    background:var(--ink);
+    color:var(--paper);
+  }
+  /* Стили для неактивных уровней-заглушек */
+  .level-toggle button.disabled{
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent !important;
+    color: #6b6255 !important;
+  }
+  .progress-wrap{
+    width:240px;
+    max-width:60vw;
+    margin:4px 0 0;
+  }
+  .progress-bar-bg{
+    background:#e3dcca;
+    border-radius:6px;
+    height:8px;
+    overflow:hidden;
+  }
+  .progress-bar-fill{
+    background:var(--good);
+    height:100%;
+    width:0%;
+    transition:width 0.25s ease;
+  }
+  .progress-text{
+    font-size:0.68rem;
+    color:#6b6255;
+    text-align:center;
+    margin-top:3px;
+  }
+  .score{
+    display:flex;
+    gap:14px;
+    font-size:0.8rem;
+  }
+  .score b{
+    font-size:1.05rem;
+    display:block;
+    text-align:center;
+  }
+  .score span{
+    display:block;
+    font-size:0.65rem;
+    color:#6b6255;
+    text-align:center;
+  }
+  .midi-panel{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .midi-btn{
+    font-family:inherit;
+    font-size:0.95rem;
+    padding:10px 18px;
+    border:1px solid var(--ink);
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:5px;
+    cursor:pointer;
+    white-space:nowrap;
+    font-weight:600;
+  }
+  .midi-btn:hover{ background:var(--ink); color:var(--paper); }
+  .midi-btn.connected{
+    background:var(--good);
+    border-color:var(--good);
+    color:#fff;
+  }
+  #midiDeviceSelect{
+    font-family:inherit;
+    font-size:0.8rem;
+    padding:6px 8px;
+    border:1px solid #d8d0bd;
+    border-radius:4px;
+    background:#fffdf8;
+    color:var(--ink);
+  }
+  .midi-status{
+    font-size:0.72rem;
+    max-width:150px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    color:#6b6255;
+    font-style:italic;
+  }
+  .midi-status.live{
+    color:var(--good);
+    font-style:normal;
+  }
+  .stave-wrap{
+    background:#ffffff;
+    border:1px solid #ccc;
+    border-radius:2px;
+    padding:24px 14px;
+    box-shadow:0 1px 6px rgba(0,0,0,0.06);
+    margin:0 auto 28px;
+    width:min(1700px, 97vw);
+    overflow-x:auto;
+  }
+  #osmd-container{ display:block; }
+  #osmd-container svg{ display:block; }
+  #feedback{
+    height:28px;
+    font-size:1.1rem;
+    margin-bottom:10px;
+    text-align:center;
+    font-style:italic;
+  }
+  #feedback.good{color:var(--good);}
+  #feedback.bad{color:var(--bad);}
+
+  .keyboard-wrap{
+    background:#fffdf8;
+    border:1px solid #d8d0bd;
+    border-radius:6px;
+    padding:14px 10px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.04);
+    margin:0 auto;
+    width:min(1700px, 97vw);
+    overflow-x:auto;
+  }
+  .keyboard{
+    position:relative;
+    display:flex;
+    user-select:none;
+    width:max-content;
+  }
+  .white-key{
+    width:30px;
+    height:140px;
+    background:#fffdf8;
+    border:1px solid var(--ink);
+    border-radius:0 0 3px 3px;
+    position:relative;
+    cursor:pointer;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding-bottom:6px;
+    font-size:0.55rem;
+    color:#a39a89;
+    transition:background 0.08s;
+  }
+  .white-key:hover{background:#f2ede0;}
+  .white-key:active, .white-key.pressed{background:var(--accent-soft);}
+  .white-key.middle-c{
+    color:var(--accent);
+    font-weight:700;
+    font-size:0.65rem;
+    border-bottom:3px solid var(--accent);
+  }
+  .white-key.middle-c:active, .white-key.middle-c.pressed{background:var(--accent-soft);}
+  .black-key{
+    width:18px;
+    height:88px;
+    background:var(--ink);
+    position:absolute;
+    top:0;
+    border-radius:0 0 2px 2px;
+    cursor:pointer;
+    z-index:2;
+    transition:background 0.08s;
+  }
+  .black-key:hover{background:#4a4438;}
+  .black-key:active, .black-key.pressed{background:var(--accent);}
+
+  .panel-box{
+    background:var(--panel);
+    border:1px solid #d8d0bd;
+    border-radius:6px;
+    padding:10px 14px;
+    font-size:0.68rem;
+    line-height:1.35;
+    max-width:280px;
+  }
+  .panel-box h3{
+    margin:0 0 4px;
+    font-size:0.75rem;
+    font-weight:600;
+  }
+  .reset-btn{
+    font-family:inherit;
+    background:transparent;
+    border:1px solid var(--ink);
+    padding:6px 10px;
+    border-radius:4px;
+    cursor:pointer;
+    font-size:0.7rem;
+    white-space:nowrap;
+  }
+  .reset-btn:hover{background:var(--ink);color:var(--paper);}
+</style>
+<style id="warm-design-system">
+  :root{
+    --paper:#f7f1ed;
+    --ink:#493a37;
+    --line:#806b65;
+    --accent:#a96f75;
+    --accent-soft:#ead3d2;
+    --good:#58785f;
+    --bad:#a94f4f;
+    --panel:#efe3df;
+    --panel-border:#ddc9c3;
+    --surface:#fffaf7;
+    --muted:#887671;
+    --shadow:0 8px 24px rgba(91,65,59,.07);
+  }
+
+  body{
+    font-family:Inter, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(ellipse at 12% 0%, rgba(234,211,210,.42), transparent 36%),
+      var(--paper);
+    color:var(--ink);
+    padding:22px clamp(12px,2.2vw,32px) 44px;
+    gap:12px;
+  }
+
+  .topbar{
+    align-items:stretch;
+    gap:14px;
+    margin:0 auto 2px;
+    padding:16px;
+    background:rgba(255,250,247,.82);
+    border:1px solid var(--panel-border);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+  }
+  .topbar-col{justify-content:center; gap:10px;}
+  .topbar-left{flex:1.15; min-width:280px;}
+  .topbar-center{flex:1; min-width:280px; gap:8px;}
+  .topbar-right{flex:0 1 250px; align-items:stretch; justify-content:center;}
+
+  h1{
+    font-family:Georgia, "Times New Roman", serif;
+    font-size:clamp(1.25rem,2vw,1.65rem);
+    font-weight:600;
+    letter-spacing:-.025em;
+    margin:0 0 4px;
+    white-space:normal;
+    color:#5a403e;
+  }
+
+  .level-row{gap:10px;}
+  .level-toggle{
+    background:#f4eae6;
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:5px;
+    gap:3px;
+  }
+  .level-toggle button{
+    min-width:32px;
+    min-height:32px;
+    border-radius:7px;
+    font-family:inherit;
+    font-size:.82rem;
+    font-weight:600;
+  }
+  .level-toggle button.active{
+    background:#8e5d63;
+    color:#fffaf7;
+    box-shadow:0 2px 5px rgba(91,55,59,.16);
+  }
+
+  .score-row{gap:12px; justify-content:center;}
+  .score{gap:clamp(12px,2vw,22px); color:#624d49;}
+  .score b{font-size:1.2rem; color:#503d3a;}
+  .score span,.progress-text{color:var(--muted);}
+  .score-actions{justify-content:center; gap:7px;}
+
+  .reset-btn{
+    border:1px solid #cdb6b0;
+    background:#fffaf7;
+    color:#6d514e;
+    border-radius:8px;
+    padding:8px 11px;
+    font-family:inherit;
+    font-size:.74rem;
+    transition:background .15s, border-color .15s, transform .15s;
+  }
+  .reset-btn:hover{
+    background:#f0e1de;
+    border-color:#b98f91;
+    color:#553e3d;
+  }
+  .reset-btn:active,.midi-btn:active{transform:translateY(1px);}
+
+  .progress-wrap{width:min(280px,100%); max-width:100%; margin:5px auto 0;}
+  .progress-bar-bg{background:#eadbd6; height:9px; border-radius:99px;}
+  .progress-bar-fill{background:#8eaa8b; border-radius:99px;}
+
+  .midi-panel{gap:7px;}
+  .midi-btn{
+    border:1px solid #95666b;
+    background:#95666b;
+    color:#fffaf7;
+    border-radius:9px;
+    padding:9px 13px;
+    font-family:inherit;
+    font-size:.82rem;
+    font-weight:600;
+    transition:background .15s, transform .15s;
+  }
+  .midi-btn:hover{background:#795057;color:#fffaf7;}
+  .midi-btn.connected{background:#58785f;border-color:#58785f;color:white;}
+  #midiDeviceSelect{
+    border:1px solid var(--panel-border);
+    border-radius:8px;
+    padding:7px 9px;
+    background:var(--surface);
+    color:var(--ink);
+    font-family:inherit;
+  }
+  .midi-status{color:var(--muted); max-width:190px;}
+  .midi-status.live{color:var(--good);}
+
+  .panel-box{
+    max-width:none;
+    background:#f3e9e5;
+    border:1px solid var(--panel-border);
+    border-radius:11px;
+    padding:12px 14px;
+    color:#6e5954;
+    font-size:.76rem;
+    line-height:1.5;
+  }
+  .panel-box h3{font-size:.83rem;color:#5a403e;margin-bottom:6px;}
+
+  #feedback{
+    min-height:30px;
+    height:auto;
+    padding:3px 8px;
+    margin:0 0 2px;
+    font-size:1rem;
+    font-style:normal;
+    font-weight:600;
+  }
+  #feedback.good{color:var(--good);}
+  #feedback.bad{color:var(--bad);}
+
+  .stave-wrap,.keyboard-wrap{
+    width:min(1700px,100%);
+    background:#ffffff;
+    border:1px solid var(--panel-border);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+  }
+  .stave-wrap{
+    padding:clamp(14px,2vw,26px);
+    margin:0 auto 4px;
+  }
+  .keyboard-wrap{
+    padding:16px 12px 12px;
+    margin:0 auto;
+  }
+
+  .white-key{
+    background:#ffffff;
+    border-color:#b9aaa4;
+    color:#a18f88;
+  }
+  .white-key:hover{background:#f7eeeb;}
+  .white-key:active,.white-key.pressed,
+  .white-key.middle-c:active,.white-key.middle-c.pressed{background:#e9c9ca;}
+  .white-key.middle-c{color:#98636a;border-bottom-color:#98636a;}
+  .black-key{background:#554744;}
+  .black-key:hover{background:#735c58;}
+  .black-key:active,.black-key.pressed{background:#a96f75;}
+
+  button:focus-visible,select:focus-visible{
+    outline:3px solid rgba(169,111,117,.35);
+    outline-offset:2px;
+  }
+
+  @media (max-width:900px){
+    .topbar{display:grid;grid-template-columns:1fr 1fr;}
+    .topbar-left{grid-column:1/-1;}
+    .topbar-center{min-width:0;}
+    .topbar-right{min-width:0;}
+  }
+  @media (max-width:600px){
+    body{padding:12px 9px 28px;gap:9px;}
+    .topbar{display:flex;flex-direction:column;padding:13px;gap:14px;border-radius:12px;}
+    .topbar-left,.topbar-center,.topbar-right{min-width:0;width:100%;align-items:stretch;}
+    .topbar-center{order:2;}
+    .topbar-right{order:3;}
+    .score-row{justify-content:space-between;}
+    .score{justify-content:space-around;flex:1;}
+    .score-actions{justify-content:flex-start;}
+    .level-row{align-items:flex-start;flex-direction:column;}
+    .midi-panel{width:100%;}
+    .panel-box{font-size:.75rem;}
+    .stave-wrap{padding:12px 8px;border-radius:10px;}
+    .keyboard-wrap{padding:12px 8px;border-radius:10px;}
+    #feedback{font-size:.92rem;}
+  }
+  /* Keep the 88-key geometry identical across all viewport widths. */
+  .keyboard{width:max-content;min-width:max-content;flex-wrap:nowrap;}
+  .keyboard > .white-key{flex:0 0 30px;width:30px;height:140px;}
+  .keyboard > .black-key{width:18px;height:88px;}
+  .keyboard-wrap{overflow-x:auto;overflow-y:hidden;}
+</style>
+<style id="fit-screen-and-fullscreen">
+  html,body{height:100%;height:100dvh;}
+  body{
+    height:100vh;height:100dvh;min-height:0;overflow:hidden;
+    padding:8px 12px 10px;gap:5px;
+  }
+  .heading-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;}
+  .heading-row h1{margin:0;}
+  .fullscreen-btn{
+    flex-shrink:0;border:1px solid #cdb6b0;border-radius:8px;
+    background:#fffaf7;color:#6d514e;padding:7px 10px;
+    font:600 .76rem Inter,'Segoe UI',Arial,sans-serif;cursor:pointer;
+  }
+  .fullscreen-btn:hover{background:#f0e1de;}
+  .topbar{flex:0 0 auto;margin:0 auto;padding:9px 12px;gap:8px;}
+  .topbar-col{gap:5px;}
+  .level-row{gap:7px;}
+  .level-toggle{padding:3px;}
+  .level-toggle button{min-height:28px;min-width:28px;padding:3px 6px;}
+  .midi-btn{padding:7px 10px;}
+  .score-row{gap:6px;}
+  .score{gap:13px;}
+  .score b{font-size:1rem;}
+  .score-actions{gap:4px;}
+  .reset-btn{padding:5px 8px;}
+  .progress-wrap{margin:2px auto 0;}
+  .panel-box{padding:7px 9px;font-size:.7rem;line-height:1.3;}
+  .panel-box h3{margin-bottom:2px;}
+  #feedback{flex:0 0 auto;min-height:20px;height:auto;margin:0;padding:0 6px;font-size:.9rem;line-height:1.2;}
+  .stave-wrap{
+    flex:1 1 auto;min-height:0;max-height:none;
+    margin:0 auto;padding:8px 12px;
+    overflow-x:auto;overflow-y:hidden;
+  }
+  .keyboard-wrap{flex:0 0 auto;margin:0 auto;padding:8px 10px;}
+  /* Key widths stay fixed: the black-key placement depends on actual white-key geometry. */
+  .keyboard > .white-key{height:clamp(72px,17dvh,140px);}
+  .keyboard > .black-key{height:clamp(45px,10.7dvh,88px);}
+  @media(max-width:900px){
+    .topbar{display:flex;flex-wrap:wrap;gap:7px;}
+    .topbar-left{flex:1 1 100%;min-width:0;}
+    .topbar-center{flex:1 1 340px;min-width:0;}
+    .topbar-right{flex:1 1 220px;min-width:0;}
+    .panel-box{max-width:none;}
+  }
+  @media(max-width:600px){
+    body{padding:5px 6px 6px;gap:3px;}
+    .topbar{display:flex;flex-direction:column;gap:6px;padding:7px 9px;}
+    .topbar-left,.topbar-center,.topbar-right{width:100%;}
+    .level-row{flex-direction:row;align-items:center;}
+    .topbar-right{display:none;}
+    .score-row{flex-wrap:wrap;}
+    .keyboard-wrap{padding:5px 7px;}
+    .stave-wrap{padding:5px 7px;}
+    .midi-status{max-width:120px;}
+    .fullscreen-btn{padding:5px 8px;}
+  }
+  @media(max-height:700px){
+    .topbar-right{display:none;}
+    .topbar{padding:6px 9px;}
+    .keyboard > .white-key{height:clamp(60px,15dvh,105px);}
+    .keyboard > .black-key{height:clamp(38px,9.5dvh,66px);}
+  }
+  @media(max-height:480px){
+    .topbar-center .progress-wrap{display:none;}
+    .topbar{gap:3px;}
+    .topbar-left{flex:1 1 auto;}
+    .topbar-center{flex:1 1 auto;}
+    .midi-status{display:none;}
+    .keyboard > .white-key{height:58px;}
+    .keyboard > .black-key{height:36px;}
+  }
+</style>
+<style id="demo-locked-levels">
+.level-toggle button.disabled{opacity:.43;cursor:not-allowed;pointer-events:none;background:transparent!important;color:#8b7772!important;box-shadow:none!important;}
+.level-toggle button.disabled:hover{background:transparent!important;transform:none!important;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-col topbar-left">
+    <div class="heading-row"><h1>Нотный тренажёр (Демо)</h1><button type="button" class="fullscreen-btn" id="fullscreenBtn" aria-label="Развернуть на весь экран" title="Развернуть на весь экран">⛶ На весь экран</button></div>
+    <div class="level-row">
+      <div class="level-toggle" id="levelToggle"></div>
+      <div class="midi-panel" id="midiPanel">
+        <button id="midiConnectBtn" class="midi-btn">Подключить MIDI</button>
+        <select id="midiDeviceSelect" style="display:none;"></select>
+        <span id="midiStatus" class="midi-status">не подключено</span>
+      </div>
+    </div>
+  </div>
+  <div class="topbar-col topbar-center">
+    <div class="score-row">
+      <div class="score">
+        <div><b id="correctCount">0</b><span>очки</span></div>
+        <div><b id="wrongCount">0</b><span>ошибок</span></div>
+        <div><b id="streakCount">0</b><span>подряд</span></div>
+      </div>
+      <div class="score-actions">
+        <button class="reset-btn" id="resetBtn">Сбросить счёт</button>
+        <button class="reset-btn" id="newSeqBtn">Новая последовательность</button>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">0 / 30 нот в последовательности</div>
+    </div>
+  </div>
+  <div class="topbar-col topbar-right">
+    <div class="panel-box">
+      <h3>Как это работает</h3>
+      Это демо-версия тренажёра. Сейчас доступен только <b>1 уровень</b>.<br>
+      В полной версии курса открываются все 6 уровней с постепенным усложнением и сохранением прогресса.
+    </div>
+  </div>
+</div>
+
+<div id="feedback"></div>
+
+<div class="stave-wrap">
+  <div id="osmd-container"></div>
+</div>
+
+<div class="keyboard-wrap">
+  <div class="keyboard" id="keyboard"></div>
+</div>
+
+<script>
+// ---------- Note model ----------
+const LETTER_STEP = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+
+function noteToStep(note){
+  const letter = note[0];
+  const octave = parseInt(note.slice(1),10);
+  return octave*7 + LETTER_STEP[letter];
+}
+
+const E4_STEP = noteToStep("E4");
+const G2_STEP = noteToStep("G2");
+
+// Уровни: данные для уровней 2-6 физически удалены (массивы notes пусты)
+const LEVELS = [
+  { label: "1", notes: ["B3","C4","D4"] }, 
+  { label: "2", notes: [] }, 
+  { label: "3", notes: [] }, 
+  { label: "4", notes: [] }, 
+  { label: "5", notes: [] }, 
+  { label: "6", notes: [] }  
+];
+let currentLevel = 0;               
+
+const SEQUENCE_LENGTH = 30;
+let currentSequence = [];
+let currentIndex = 0;
+let correct = 0, wrong = 0, streak = 0;
+
+// ---------- Progress persistence ----------
+const STORAGE_KEY = "noteTrainerProgress_demo_v1";
+
+function saveProgress(){
+  try{
+    const data = { currentLevel: 0, correct, wrong };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(err){}
+}
+
+function loadProgress(){
+  try{
+    // В демо-версии принудительно фиксируем 1 уровень, игнорируя любые сохраненные данные
+    currentLevel = 0;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const data = JSON.parse(raw);
+      if(typeof data.correct === "number") correct = data.correct;
+      if(typeof data.wrong === "number") wrong = data.wrong;
+    }
+  } catch(err){}
+}
+
+// ---------- Stave rendering ----------
+let osmd = null;
+let allNotesGraphical = [];   
+let noteheadEls = [];         
+let stepNoteIndex = [];       
+
+function noteClef(note){
+  return noteToStep(note) >= noteToStep("C4") ? "treble" : "bass";
+}
+
+function buildBalancedClefSlots(total, hasTreble, hasBass){
+  if(!hasTreble || !hasBass){
+    return Array(total).fill(hasTreble ? "treble" : "bass");
+  }
+  let trebleLeft = Math.ceil(total / 2);
+  let bassLeft = total - trebleLeft;
+  const slots = [];
+  let lastClef = null, runLen = 0;
+  for(let i=0;i<total;i++){
+    let preferred = trebleLeft === bassLeft
+      ? (Math.random() < 0.5 ? "treble" : "bass")
+      : (trebleLeft > bassLeft ? "treble" : "bass");
+    const other = preferred === "treble" ? "bass" : "treble";
+    const preferredLeft = preferred === "treble" ? trebleLeft : bassLeft;
+    const otherLeft = other === "treble" ? trebleLeft : bassLeft;
+    const preferredBlocked = (lastClef === preferred && runLen >= 2);
+
+    let choice;
+    if(preferredLeft > 0 && !preferredBlocked) choice = preferred;
+    else if(otherLeft > 0) choice = other;
+    else choice = preferred;
+
+    slots.push(choice);
+    if(choice === lastClef) runLen++; else { lastClef = choice; runLen = 1; }
+    if(choice === "treble") trebleLeft--; else bassLeft--;
+  }
+  return slots;
+}
+
+function generateSequence(){
+  const levelNotes = LEVELS[currentLevel].notes;
+  // Защита: если массив нот пуст (уровень заблокирован), прерываем выполнение
+  if (!levelNotes || levelNotes.length === 0) {
+    console.warn("Генерация последовательности для недоступного уровня заблокирована");
+    return;
+  }
+  
+  const trebleNotes = levelNotes.filter(n => n === "C4" || noteClef(n) === "treble");
+  const bassNotes = levelNotes.filter(n => n === "C4" || noteClef(n) === "bass");
+  const clefSlots = buildBalancedClefSlots(SEQUENCE_LENGTH, trebleNotes.length > 0, bassNotes.length > 0);
+
+  const seq = [];
+  for(let i=0;i<SEQUENCE_LENGTH;i++){
+    const clef = clefSlots[i];
+    const pool = clef === "treble" ? trebleNotes : bassNotes;
+    const prev1 = seq[i-1];
+    const prev2 = seq[i-2];
+    let candidates = pool;
+    if(prev1 && prev2 && prev1.n === prev2.n){
+      const filtered = pool.filter(n => n !== prev1.n);
+      if(filtered.length) candidates = filtered;
+    }
+    const noteName = candidates[Math.floor(Math.random()*candidates.length)];
+    seq.push({ n: noteName, c: clef });
+  }
+  currentSequence = seq;
+  currentIndex = 0;
+}
+
+function parseNoteName(note){
+  const m = note.match(/^([A-G])(-?\d+)$/);
+  return { step: m[1], octave: m[2] };
+}
+
+function stemDirection(note, clef){
+  const middle = noteToStep(clef === "treble" ? "B4" : "D3");
+  return noteToStep(note) < middle ? "up" : "down";
+}
+
+function quarterNoteXML(note, voice, staff, stem){
+  const { step, octave } = parseNoteName(note);
+  return `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>1</duration><voice>${voice}</voice><type>quarter</type><stem>${stem}</stem><staff>${staff}</staff></note>`;
+}
+
+function quarterRestXML(voice, staff){
+  return `<note print-object="no"><rest/><duration>1</duration><voice>${voice}</voice><type>quarter</type><staff>${staff}</staff></note>`;
+}
+
+function buildMusicXML(seq){
+  let voice1 = "", voice2 = "";
+  seq.forEach(pick => {
+    if(pick.c === "treble"){
+      voice1 += quarterNoteXML(pick.n, 1, 1, stemDirection(pick.n, "treble"));
+      voice2 += quarterRestXML(5, 2);
+    } else {
+      voice1 += quarterRestXML(1, 1);
+      voice2 += quarterNoteXML(pick.n, 5, 2, stemDirection(pick.n, "bass"));
+    }
+  });
+
+  const attributesXML = `<attributes><divisions>1</divisions><key><fifths>0</fifths></key><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>`;
+  const measuresXML = `<measure number="1">${attributesXML}${voice1}<backup><duration>${seq.length}</duration></backup>${voice2}</measure>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">${measuresXML}</part>
+</score-partwise>`;
+}
+
+async function initOSMD(){
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
+    drawTitle: false,
+    drawPartNames: false,
+    followCursor: false
+  });
+  osmd.EngravingRules.PageLeftMargin = 2;
+  osmd.EngravingRules.PageRightMargin = 2;
+  osmd.EngravingRules.PageTopMargin = 3;
+  osmd.EngravingRules.PageBottomMargin = 3;
+}
+
+function getNoteSVGElement(graphicalNote){
+  try{
+    const vf = graphicalNote.vfnote && graphicalNote.vfnote[0];
+    return (vf && vf.attrs && vf.attrs.el) ? vf.attrs.el : null;
+  } catch(e){ return null; }
+}
+
+function collectNotes(){
+  allNotesGraphical = [];
+  osmd.GraphicSheet.MeasureList.forEach(row=>{
+    row.forEach(measure=>{
+      if(!measure) return;
+      measure.staffEntries.forEach(entry=>{
+        entry.graphicalVoiceEntries.forEach(ve=>{
+          ve.notes.forEach(note=>{
+            if(note.sourceNote && !note.sourceNote.isRest()) allNotesGraphical.push(note);
+          });
+        });
+      });
+    });
+  });
+  noteheadEls = allNotesGraphical.map(getNoteSVGElement);
+
+  const groups = new Map();
+  allNotesGraphical.forEach((note, idx)=>{
+    const ts = note.sourceNote.getAbsoluteTimestamp().RealValue;
+    const key = ts.toFixed(6);
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(idx);
+  });
+  stepNoteIndex = Array.from(groups.keys())
+    .map(Number).sort((a,b)=>a-b)
+    .map(k => groups.get(k.toFixed(6))[0]);
+}
+
+const COLOR_DEFAULT = "#000000";
+const COLOR_DONE = "#b9b0a0";
+const COLOR_CURRENT = "#a8462f";
+const COLOR_WRONG = "#d32f2f";
+
+function paintNote(stepIdx, color){
+  const noteIdx = stepNoteIndex[stepIdx];
+  if(noteIdx === undefined) return;
+  const el = noteheadEls[noteIdx];
+  if(!el) return;
+  if(el.tagName === "ellipse" || el.tagName === "path" || el.tagName === "circle"){
+    if(el.getAttribute("fill") === "#fff") el.setAttribute("stroke", color);
+    else el.setAttribute("fill", color);
+  }
+  if(el.querySelectorAll){
+    el.querySelectorAll("path, ellipse, circle").forEach(shape=>{
+      shape.setAttribute("fill", color);
+    });
+  }
+}
+
+let wrongFlashActive = false;
+
+function repaintAll(){
+  currentSequence.forEach((pick, i)=>{
+    let color = COLOR_DEFAULT;
+    if(i < currentIndex) color = COLOR_DONE;
+    else if(i === currentIndex) color = wrongFlashActive ? COLOR_WRONG : COLOR_CURRENT;
+    paintNote(i, color);
+  });
+}
+
+function scrollStaveToCurrent(){
+  const wrap = document.querySelector('.stave-wrap');
+  const noteIdx = stepNoteIndex[currentIndex];
+  const el = noteIdx !== undefined ? noteheadEls[noteIdx] : null;
+  if(!wrap || !el || !el.getBoundingClientRect) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const elLeftRelativeToContent = (elRect.left - wrapRect.left) + wrap.scrollLeft;
+  const target = Math.max(0, elLeftRelativeToContent - wrap.clientWidth * 0.35);
+  wrap.scrollTo({ left: target, behavior: "smooth" });
+}
+
+function refreshHighlight(){
+  if(osmd && osmd.GraphicSheet) collectNotes();
+  repaintAll();
+  scrollStaveToCurrent();
+}
+
+function wait(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function renderFullSequence(retryCount){
+  retryCount = retryCount || 0;
+  if(!osmd){
+    if(typeof opensheetmusicdisplay === "undefined"){
+      document.getElementById('osmd-container').innerHTML =
+        '<div style="color:#b8462f;font-family:Arial;padding:10px;">Не удалось загрузить библиотеку нотной графики. Проверь интернет-соединение и перезагрузи страницу.</div>';
+      return;
+    }
+    await initOSMD();
+  }
+  try{
+    const xml = buildMusicXML(currentSequence);
+    await osmd.load(xml);
+    osmd.zoom = window.innerHeight < 750 ? 1.875 : (window.innerHeight < 950 ? 2.25 : 3.0); // Enlarged notation, matching the earlier large-note trainer version 
+    const container = document.getElementById('osmd-container');
+    container.style.width = Math.max(2400, currentSequence.length * 220) + "px";
+    osmd.render();
+    collectNotes();
+
+    const incomplete = stepNoteIndex.length < currentSequence.length;
+    if(incomplete && retryCount < 4){
+      await wait(200);
+      return renderFullSequence(retryCount + 1);
+    }
+
+    refreshHighlight();
+    setTimeout(refreshHighlight, 400);
+    setTimeout(refreshHighlight, 1000);
+  } catch(err){
+    console.error("renderFullSequence failed:", err);
+    if(retryCount < 4){
+      await wait(200);
+      return renderFullSequence(retryCount + 1);
+    }
+  }
+}
+
+// ---------- Keyboard ----------
+const WHITE_ORDER = ["C","D","E","F","G","A","B"];
+const BLACK_AFTER = {C:true,D:true,F:true,G:true,A:true}; 
+
+function buildWhiteSequence(){
+  const seq = [{letter:"A", oct:0}, {letter:"B", oct:0}];
+  for(let oct=1; oct<=7; oct++){
+    WHITE_ORDER.forEach(letter => seq.push({letter, oct}));
+  }
+  seq.push({letter:"C", oct:8});
+  return seq;
+}
+
+function buildKeyboard(){
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = "";
+  const whiteSeq = buildWhiteSequence();
+  const whiteKeys = [];
+
+  whiteSeq.forEach(wk => {
+    const note = wk.letter + wk.oct;
+    const key = document.createElement('div');
+    key.className = 'white-key';
+    key.dataset.note = note;
+
+    if(note === "C4"){
+      key.textContent = "ДО";
+      key.classList.add('middle-c');
+    } else if(wk.letter === "C"){
+      key.textContent = "C" + wk.oct; 
+    }
+
+    kb.appendChild(key);
+    whiteKeys.push({ ...wk, el:key });
+    key.addEventListener('click', ()=>handleAnswer(note, key, true));
+  });
+
+  requestAnimationFrame(()=>{
+    const keyWidth = whiteKeys[0].el.offsetWidth;
+    whiteKeys.forEach((wk, i)=>{
+      if(BLACK_AFTER[wk.letter] && i < whiteKeys.length - 1){
+        const black = document.createElement('div');
+        black.className = 'black-key';
+        black.style.left = (i*keyWidth + keyWidth*0.68) + "px";
+        kb.appendChild(black);
+        const sharpNote = wk.letter+"#"+wk.oct;
+        black.dataset.note = sharpNote;
+        black.addEventListener('click', (e)=>{ e.stopPropagation(); handleAnswer(sharpNote, black, true); });
+      }
+    });
+  });
+}
+
+// ---------- Sound feedback ----------
+const PITCH_CLASS = {C:0,"C#":1,D:2,"D#":3,E:4,F:5,"F#":6,G:7,"G#":8,A:9,"A#":10,B:11};
+
+function noteNameToMidi(note){
+  const m = note.match(/^([A-G]#?)(-?\d+)$/);
+  if(!m) return 69; 
+  const [, letter, octStr] = m;
+  const octave = parseInt(octStr, 10);
+  return (octave + 1) * 12 + PITCH_CLASS[letter];
+}
+
+function playKeyTone(note){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const midi = noteNameToMidi(note);
+  const freq = 440 * Math.pow(2, (midi - 69) / 12);
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(freq, now);
+
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.type = "sine";
+  osc2.frequency.setValueAtTime(freq * 2, now);
+
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.18, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+
+  gain2.gain.setValueAtTime(0, now);
+  gain2.gain.linearRampToValueAtTime(0.03, now + 0.015);
+  gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc2.connect(gain2); gain2.connect(ctx.destination);
+
+  osc.start(now); osc.stop(now + 0.52);
+  osc2.start(now); osc2.stop(now + 0.32);
+}
+
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(err){ audioCtx = null; }
+  }
+  return audioCtx;
+}
+
+function playDrumHit(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const oscGain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(45, now + 0.15);
+  oscGain.gain.setValueAtTime(0.35, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.21);
+
+  const bufferSize = ctx.sampleRate * 0.06;
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2 - 1) * (1 - i/bufferSize); }
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.25, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  noise.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noise.start(now);
+}
+
+function playErrorSound(){
+  playDrumHit();
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const now = ctx.currentTime + 0.05; 
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(220, now);
+  osc.frequency.exponentialRampToValueAtTime(110, now + 0.18);
+  gain.gain.setValueAtTime(0.22, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.23);
+}
+
+function handleAnswer(note, el, playTone){
+  if(currentSequence.length === 0) return;
+  if(playTone) playKeyTone(note);
+  const target = currentSequence[currentIndex];
+  const isCorrect = note === target.n;
+  if(el && el.classList){
+    el.classList.add('pressed');
+    setTimeout(()=>el.classList.remove('pressed'), 150);
+  }
+
+  const fb = document.getElementById('feedback');
+  if(isCorrect){
+    correct++; streak++;
+    currentIndex++;
+
+    if(currentIndex >= currentSequence.length){
+      fb.textContent = "Отлично! Новая последовательность…";
+      fb.className = "good";
+      updateScore();
+      saveProgress();
+      refreshHighlight();
+      setTimeout(()=>{
+        fb.textContent = ""; fb.className = "";
+        generateSequence();
+        renderFullSequence();
+        updateScore();
+      }, 900);
+      return;
+    }
+    fb.textContent = "Верно — " + target.n;
+    fb.className = "good";
+    updateScore();
+    refreshHighlight();
+    saveProgress();
+    setTimeout(()=>{ fb.textContent=""; fb.className=""; }, 500);
+  } else {
+    wrong++; streak=0;
+    playErrorSound();
+    fb.textContent = "Неверно, попробуй ещё раз";
+    fb.className = "bad";
+    updateScore();
+    saveProgress();
+    wrongFlashActive = true;
+    refreshHighlight();
+    setTimeout(()=>{
+      fb.textContent=""; fb.className="";
+      wrongFlashActive = false;
+      refreshHighlight();
+    }, 1100);
+  }
+}
+
+function updateScore(){
+  document.getElementById('correctCount').textContent = correct;
+  document.getElementById('wrongCount').textContent = wrong;
+  document.getElementById('streakCount').textContent = streak;
+
+  const posInSequence = Math.min(currentIndex, SEQUENCE_LENGTH);
+  const pct = (posInSequence / SEQUENCE_LENGTH) * 100;
+  document.getElementById('progressFill').style.width = pct + "%";
+  document.getElementById('progressText').textContent =
+    posInSequence + " / " + SEQUENCE_LENGTH + " нот в последовательности";
+}
+
+function renderLevelSelector(){
+  const wrap = document.getElementById('levelToggle');
+  wrap.innerHTML = "";
+  LEVELS.forEach((lvl, i)=>{
+    const btn = document.createElement('button');
+    btn.textContent = lvl.label;
+
+    if (i === 0) {
+      // Уровень 1: полностью активный
+      if(i === currentLevel) btn.classList.add('active');
+      btn.addEventListener('click', ()=>{
+        currentLevel = i;
+        generateSequence();
+        renderFullSequence();
+        renderLevelSelector();
+        updateScore();
+        saveProgress();
+      });
+    } else {
+      // Уровни 2-6: заглушки
+      btn.classList.add('disabled');
+      btn.title = "Доступно в полной версии курса";
+    }
+    wrap.appendChild(btn);
+  });
+}
+
+// ---------- Controls ----------
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  correct=0; wrong=0; streak=0; updateScore(); saveProgress();
+});
+
+document.getElementById('newSeqBtn').addEventListener('click', ()=>{
+  generateSequence();
+  renderFullSequence();
+  updateScore();
+});
+
+// ---------- Web MIDI ----------
+const MIDI_LETTER_BY_PC = {0:"C",1:"C#",2:"D",3:"D#",4:"E",5:"F",6:"F#",7:"G",8:"G#",9:"A",10:"A#",11:"B"};
+
+function midiNumberToNote(num){
+  const pc = num % 12;
+  const octave = Math.floor(num/12) - 1;
+  return MIDI_LETTER_BY_PC[pc] + octave;
+}
+
+let midiAccess = null;
+let activeInputs = [];
+const midiBtn = document.getElementById('midiConnectBtn');
+const midiSelect = document.getElementById('midiDeviceSelect');
+const midiStatus = document.getElementById('midiStatus');
+
+function flashStatusLive(){
+  midiStatus.classList.add('live');
+  clearTimeout(flashStatusLive._t);
+  flashStatusLive._t = setTimeout(()=>midiStatus.classList.remove('live'), 200);
+}
+
+const midiNoteLastTime = {}; 
+const MIDI_DEBOUNCE_MS = 40;
+
+function onMIDIMessage(e){
+  const [status, data1, velocity] = e.data;
+  const command = status & 0xf0;
+  if(command === 0x90 && velocity > 0){
+    const now = performance.now();
+    const lastTime = midiNoteLastTime[data1] || 0;
+    if(now - lastTime < MIDI_DEBOUNCE_MS){
+      return; 
+    }
+    midiNoteLastTime[data1] = now;
+
+    flashStatusLive();
+    const note = midiNumberToNote(data1);
+    const el = document.querySelector(`.white-key[data-note="${note}"], .black-key[data-note="${note}"]`);
+    handleAnswer(note, el || midiBtn);
+  }
+}
+
+function attachToInputs(inputs){
+  activeInputs.forEach(inp => inp.onmidimessage = null);
+  activeInputs = inputs;
+  inputs.forEach(inp => inp.onmidimessage = onMIDIMessage);
+}
+
+function refreshDeviceList(){
+  const inputs = Array.from(midiAccess.inputs.values());
+  midiSelect.innerHTML = "";
+  if(inputs.length === 0){
+    midiStatus.textContent = "инструмент не найден";
+    midiSelect.style.display = "none";
+    return;
+  }
+  inputs.forEach((inp, i)=>{
+    const opt = document.createElement('option');
+    opt.value = inp.id;
+    opt.textContent = inp.name || ("MIDI-устройство " + (i+1));
+    midiSelect.appendChild(opt);
+  });
+  midiSelect.style.display = inputs.length > 1 ? "inline-block" : "none";
+  const selectedInput = inputs.find(i=>i.id === midiSelect.value) || inputs[0];
+  attachToInputs([selectedInput]);
+  midiStatus.textContent = "подключено: " + (selectedInput.name || "MIDI");
+  midiBtn.classList.add('connected');
+  midiBtn.textContent = "MIDI подключён";
+}
+
+midiSelect.addEventListener('change', ()=>{
+  const inputs = Array.from(midiAccess.inputs.values());
+  const chosen = inputs.find(i=>i.id === midiSelect.value);
+  if(chosen){
+    attachToInputs([chosen]);
+    midiStatus.textContent = "подключено: " + (chosen.name || "MIDI");
+  }
+});
+
+midiBtn.addEventListener('click', async ()=>{
+  if(!navigator.requestMIDIAccess){
+    midiStatus.textContent = "браузер не поддерживает Web MIDI";
+    return;
+  }
+  try{
+    midiAccess = await navigator.requestMIDIAccess();
+    refreshDeviceList();
+    midiAccess.onstatechange = refreshDeviceList;
+  } catch(err){
+    midiStatus.textContent = "доступ к MIDI не разрешён";
+  }
+});
+
+// ---------- Init ----------
+loadProgress();
+buildKeyboard();
+renderLevelSelector();
+generateSequence();
+updateScore();
+
+async function startFirstRender(){
+  if(document.fonts && document.fonts.ready){
+    try{ await document.fonts.ready; } catch(err){}
+  }
+  await wait(150);
+  renderFullSequence();
+}
+if(document.readyState === "complete"){
+  startFirstRender();
+} else {
+  window.addEventListener('load', startFirstRender);
+}
+</script>
+<script id="fullscreen-controls">
+(function(){
+  const btn=document.getElementById('fullscreenBtn');
+  const supported=!!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  if(!supported){btn.title='Полноэкранный режим недоступен в этом браузере';btn.disabled=true;return;}
+  function sync(){
+    const active=!!(document.fullscreenElement || document.webkitFullscreenElement);
+    btn.textContent=active?'⤢ Выйти из полного экрана':'⛶ На весь экран';
+    btn.setAttribute('aria-label',active?'Выйти из полного экрана':'Развернуть на весь экран');
+  }
+  btn.addEventListener('click',async()=>{
+    try{
+      if(document.fullscreenElement || document.webkitFullscreenElement){
+        if(document.exitFullscreen)await document.exitFullscreen();
+        else if(document.webkitExitFullscreen)document.webkitExitFullscreen();
+      }else{
+        if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();
+        else if(document.documentElement.webkitRequestFullscreen)document.documentElement.webkitRequestFullscreen();
+      }
+    }catch(e){console.warn('Fullscreen unavailable:',e);}
+    sync();
+  });
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  sync();
+})();
+</script>
+</body>
+</html>

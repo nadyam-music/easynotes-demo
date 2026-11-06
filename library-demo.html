@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<title>Прототип: тренажёр нот</title>
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.3/build/opensheetmusicdisplay.min.js"></script>
+<style>
+  :root{
+    --ink:#20231f;
+    --paper:#f6f4ee;
+    --line:#c9c2b2;
+    --wrong:#b8462f;
+    --right:#3d7a4f;
+    --wait:#8d6b3f;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background:var(--paper);
+    color:var(--ink);
+    padding:32px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:600;
+    margin:0 0 4px;
+    letter-spacing:.2px;
+  }
+  .sub{
+    font-family: Arial, sans-serif;
+    font-size:13px;
+    color:#6b6555;
+    margin-bottom:24px;
+  }
+  .panel{
+    display:flex;
+    gap:24px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+  }
+  .card{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:14px 18px;
+    font-family: Arial, sans-serif;
+  }
+  .card b{display:block;font-size:12px;color:#847d68;font-weight:normal;margin-bottom:4px}
+  .card .val{font-size:26px;font-family:Georgia,serif}
+  .val.right{color:var(--right)}
+  .val.wrong{color:var(--wrong)}
+  #status{
+    font-family: Arial, sans-serif;
+    font-size:14px;
+    padding:10px 14px;
+    border-left:3px solid var(--wait);
+    background:#fbf8f0;
+    margin-bottom:20px;
+    max-width:640px;
+  }
+  #status.ok{border-color:var(--right)}
+  #status.bad{border-color:var(--wrong)}
+  #status.early{border-color:var(--wrong);background:#fbebe6;}
+  #playhead-line.held-early{background:var(--wrong);box-shadow:0 0 12px 3px rgba(184,70,47,.85);}
+  #osmd-container{
+    background:#fff;
+    padding:20px;
+  }
+  #scroll-viewport{
+    position:relative;
+    overflow:hidden;
+    background:#fff;
+    border:1px solid var(--line);
+    width:100%;
+    height:480px;
+  }
+  #scroll-viewport #osmd-container{
+    position:absolute;
+    top:0;
+    left:0;
+    width:6000px;
+  }
+
+  #scroll-viewport.classic-mode{
+    height:auto;
+    overflow:visible;
+    max-width:900px;
+  }
+  #scroll-viewport.classic-mode #osmd-container{
+    position:static;
+    width:auto !important;
+    max-width:900px;
+    transform:none !important;
+  }
+  #scroll-viewport.classic-mode #playhead-line{
+    display:none;
+  }
+
+  #playhead-line{
+    position:absolute;
+    top:0;
+    bottom:0;
+    left:25%;
+    width:2px;
+    background:#d4b23c;
+    box-shadow:0 0 8px 2px rgba(212,178,60,.7);
+    z-index:5;
+    pointer-events:none;
+  }
+  .mode-toggle{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+  }
+  .mode-toggle button.active{
+    background:var(--ink);
+    color:#fff;
+  }
+  .rhythm-controls{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:14px;
+    font-family:Arial, sans-serif;
+    font-size:13px;
+  }
+  .rhythm-controls input[type=range]{ width:140px; }
+  #libraryPanel{
+    background:#fff;
+    border:1px solid var(--line);
+    padding:8px 6px;
+    margin-bottom:20px;
+    max-width:420px;
+    font-family:Arial, sans-serif;
+    font-size:14px;
+  }
+  .lib-folder, .lib-file{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 10px;
+    cursor:pointer;
+    border-radius:2px;
+    user-select:none;
+  }
+  .lib-folder:hover, .lib-file:hover{ background:#f1eee5; }
+  .lib-file{ padding-left:40px; }
+  .lib-file.active{ background:#e6efe8; color:var(--right); font-weight:bold; }
+  .lib-empty{ padding:6px 10px 6px 40px; color:#9a927c; font-size:13px; }
+  .lib-arrow{ display:inline-block; width:10px; font-size:10px; color:#8d8468; transition:transform .15s; }
+  .lib-folder.open .lib-arrow{ transform:rotate(90deg); }
+  button{
+    font-family: Arial, sans-serif;
+    font-size:13px;
+    padding:8px 16px;
+    border:1px solid var(--ink);
+    background:transparent;
+    cursor:pointer;
+    border-radius:2px;
+  }
+  button:hover{background:var(--ink);color:#fff}
+  .keyboard-hint{
+    font-family: Arial, sans-serif;
+    font-size:12px;
+    color:#8d8468;
+    margin-top:10px;
+  }
+</style>
+<style id="sidebar-redesign">
+:root{--paper:#f7f1ed;--ink:#493a37;--line:#ddc9c3;--right:#58785f;--wrong:#a94f4f;--wait:#8d6b3f}
+html,body{height:100%}body{padding:0;display:flex;flex-direction:column;overflow:hidden;font-family:Georgia,'Times New Roman',serif;background:#f7f1ed}
+.app-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 24px 12px;border-bottom:1px solid var(--line);flex-shrink:0;background:#f7f1ed}
+h1{font-size:27px;color:#533c3a;letter-spacing:0}.sub{margin:4px 0 0;color:#826e66;font-size:12px}
+.workspace{display:grid;grid-template-columns:320px minmax(0,1fr);flex:1;min-height:0}
+.sidebar{overflow-y:auto;overscroll-behavior:contain;padding:17px 18px 25px;border-right:1px solid var(--line);font-family:Arial,sans-serif;scrollbar-width:thin;scrollbar-color:#b7a6a0 transparent}
+.control-section{padding:0 0 17px;margin:0 0 18px;border-bottom:1px solid var(--line)}.control-section:last-child{border:0}
+.control-section h2{margin:0 0 12px;color:#775e56;font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+button,.file-upload{border:1px solid #d7c7c1;background:#fffaf7;border-radius:8px;color:#513e3a;font-family:Arial,sans-serif;font-size:12px;padding:10px 11px;transition:background .15s,border-color .15s}
+button:hover,.file-upload:hover{background:#f0e1de;color:#513e3a;border-color:#b98f91}.full-width{display:block;width:100%;text-align:center;margin-bottom:7px}
+.primary-btn{background:#78575a;color:white;border-color:#78575a;font-weight:bold}.primary-btn:hover{background:#624448;color:white;border-color:#624448}.primary-btn.connected{background:#58785f;border-color:#58785f;color:white}.primary-btn.connected:hover{background:#47674e;border-color:#47674e;color:white}
+.file-upload{cursor:pointer}.section-help,.keyboard-hint{font-size:11px;line-height:1.5;color:#937a70;margin:8px 0 0}
+.mode-toggle{margin:0;gap:3px}.segmented{display:flex;background:#fffaf7;border:1px solid #d9c8c1;padding:4px;border-radius:10px;width:100%}.segmented button{border:0;border-radius:7px;flex:1;padding:10px 5px;background:transparent;font-size:11px;white-space:normal}.segmented button.active,.frag-row button.active,.fragment-actions button.active{background:#78575a;color:white}.segmented button:hover:not(.active){background:#f0e1de}
+.hand-row{display:block;margin:0}.fragment-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px}.fragment-actions button{padding:9px 5px;font-size:11px}
+.frag-row{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:7px;align-items:center;margin:0}.frag-row label{font-size:11px;color:#775e56}.frag-row input[type=number]{width:100%;min-width:0;border:1px solid #d9c8c1;border-radius:7px;padding:9px 5px;text-align:center;color:#513e3a}.frag-row #fragApplyBtn{grid-column:1/-1}
+.rhythm-controls{flex-direction:column;align-items:stretch;gap:10px;margin:0 0 12px}.rhythm-controls label{display:flex;flex-direction:column;gap:6px}.rhythm-controls input[type=range]{width:100%;accent-color:#a96f75}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.card{padding:10px 4px;text-align:center;border:1px solid var(--line);border-radius:9px;background:#fffaf7}.card b{font-size:10px;color:#8a746d}.card .val{font-size:22px}.val.right{color:var(--right)}.val.wrong{color:var(--wrong)}
+.sheet-area{min-width:0;min-height:0;display:flex;flex-direction:column;background:white}.sheet-title{height:39px;flex-shrink:0;padding:11px 20px;border-bottom:1px solid #e8dcd6;font-size:14px;color:#6c514b}
+#scroll-viewport{flex:1;min-height:0;height:auto;width:100%;border:0;background:white;max-width:none}
+#scroll-viewport.classic-mode{flex:1;min-height:0;max-width:none;height:auto;overflow:auto}
+#scroll-viewport.classic-mode #osmd-container{max-width:none}
+#osmd-container{background:#fff}
+.empty-state{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px;pointer-events:none;color:#785b52}.empty-icon{font-size:50px;color:#aa8f9d;margin-bottom:10px}.empty-title{font-size:24px;color:#493a37}.empty-state p{font-size:14px;line-height:1.7;max-width:490px}
+#status{flex-shrink:0;max-width:none;margin:0;padding:10px 22px;background:#f7f1ed;border:0;border-top:1px solid var(--line);font-family:Arial,sans-serif;font-size:12px;color:#72594f}
+#status.ok,#status.bad,#status.early{border-top:2px solid var(--right)}#status.bad,#status.early{border-top-color:var(--wrong)}
+.fullscreen-btn{padding:8px 12px;white-space:nowrap}
+@media(max-width:720px){.workspace{grid-template-columns:245px minmax(0,1fr)}.sidebar{padding:13px 10px}.app-header{padding:10px 14px}.empty-title{font-size:18px}.empty-state p{font-size:12px}}
+@media(max-width:540px){body{overflow:auto;min-height:100%;height:auto}.workspace{display:flex;flex-direction:column;min-height:0}.sidebar{overflow:visible;max-height:none}.sheet-area{min-height:450px}#scroll-viewport{min-height:410px}.control-section{margin-bottom:12px;padding-bottom:12px}.app-header h1{font-size:22px}}
+</style>
+<style id="library-layout-overrides">
+#libraryPanel{max-width:none;width:100%;margin:9px 0 0;padding:5px 2px;border:1px solid var(--line);border-radius:9px;max-height:45vh;overflow-y:auto;background:#fffaf7}
+.lib-folder,.lib-file{font-size:12px;padding:9px 8px;border-radius:6px}.lib-file{padding-left:24px}.lib-folder:hover,.lib-file:hover{background:#f0e1de}.lib-file.active{background:#e6efe8;color:#58785f}
+/* Закрытые пьесы визуально отличаются от доступных. */
+.lib-file.locked, .lib-file.locked span{color:#9a9a9a!important;font-weight:400}
+.lib-file.locked{cursor:not-allowed;opacity:.78}
+.lib-file.locked:hover{background:transparent}
+
+#currentPieceLabel{overflow-wrap:anywhere}
+#adminPanel{max-width:none!important;margin:8px 0!important;border-radius:8px;background:#fffaf7}
+#scroll-viewport.rhythm-mode #playhead-line{display:block}
+#playhead-line{width:38px;left:calc(25% - 19px);background:rgba(230,191,58,.28);box-shadow:none;border-left:1px solid rgba(192,147,30,.22);border-right:1px solid rgba(192,147,30,.22);border-radius:3px}
+#playhead-line.held-early{background:rgba(184,70,47,.27);box-shadow:none;border-color:rgba(184,70,47,.42)}
+.restart-fragment-btn{width:100%;margin-top:8px}
+#scroll-viewport{position:relative}
+#library-welcome{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;background:#fff;z-index:3;pointer-events:none}
+#library-welcome .welcome-message{font-size:clamp(21px,2.3vw,30px);line-height:1.4;font-weight:600;color:#614842;max-width:600px}
+#scroll-viewport:not(.piece-loaded) #playhead-line{display:none!important}
+#scroll-viewport.piece-loaded #library-welcome{display:none}
+</style>
+</head>
+<body>
+<!-- Библиотека пьес хранится здесь как данные страницы. Когда владелица добавляет пьесу,
+     JS-код этой же страницы публикует новую версию с обновлённым списком — прямо из браузера,
+     без обращения к Claude. Обычные посетители (ученики) это менять не могут. -->
+<script id="piece-library-data" type="application/json">[{"lesson": 1, "title": "Упражнение 1", "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE score-partwise PUBLIC \"-//Recordare//DTD MusicXML 3.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\">\n<score-partwise>\n  <identification>\n    <encoding>\n      <software>MuseScore 2.1.0<\/software>\n      <encoding-date>2026-09-28<\/encoding-date>\n      <supports element=\"accidental\" type=\"yes\"/>\n      <supports element=\"beam\" type=\"yes\"/>\n      <supports element=\"print\" attribute=\"new-page\" type=\"yes\" value=\"yes\"/>\n      <supports element=\"print\" attribute=\"new-system\" type=\"yes\" value=\"yes\"/>\n      <supports element=\"stem\" type=\"yes\"/>\n      <\/encoding>\n    <\/identification>\n  <defaults>\n    <scaling>\n      <millimeters>10<\/millimeters>\n      <tenths>40<\/tenths>\n      <\/scaling>\n    <page-layout>\n      <page-height>1187.72<\/page-height>\n      <page-width>840.239<\/page-width>\n      <page-margins type=\"even\">\n        <left-margin>40<\/left-margin>\n        <right-margin>40<\/right-margin>\n        <top-margin>40<\/top-margin>\n        <bottom-margin>80.0001<\/bottom-margin>\n        <\/page-margins>\n      <page-margins type=\"odd\">\n        <left-margin>40<\/left-margin>\n        <right-margin>40<\/right-margin>\n        <top-margin>40<\/top-margin>\n        <bottom-margin>80.0001<\/bottom-margin>\n        <\/page-margins>\n      <\/page-layout>\n    <word-font font-family=\"FreeSerif\" font-size=\"10\"/>\n    <lyric-font font-family=\"FreeSerif\" font-size=\"11\"/>\n    <\/defaults>\n  <credit page=\"1\">\n    <credit-words default-x=\"420.12\" default-y=\"1147.72\" justify=\"center\" valign=\"top\" font-size=\"24\">Упражнение 1<\/credit-words>\n    <\/credit>\n  <part-list>\n    <score-part id=\"P1\">\n      <part-name>Piano<\/part-name>\n      <part-abbreviation>Pno.<\/part-abbreviation>\n      <score-instrument id=\"P1-I1\">\n        <instrument-name>Piano<\/instrument-name>\n        <\/score-instrument>\n      <midi-device id=\"P1-I1\" port=\"1\"><\/midi-device>\n      <midi-instrument id=\"P1-I1\">\n        <midi-channel>1<\/midi-channel>\n        <midi-program>1<\/midi-program>\n        <volume>78.7402<\/volume>\n        <pan>0<\/pan>\n        <\/midi-instrument>\n      <\/score-part>\n    <\/part-list>\n  <part id=\"P1\">\n    <measure number=\"1\" width=\"397.30\">\n      <print>\n        <system-layout>\n          <system-margins>\n            <left-margin>21.00<\/left-margin>\n            <right-margin>0.00<\/right-margin>\n            <\/system-margins>\n          <top-system-distance>122.58<\/top-system-distance>\n          <\/system-layout>\n        <staff-layout number=\"2\">\n          <staff-distance>65.00<\/staff-distance>\n          <\/staff-layout>\n        <\/print>\n      <attributes>\n        <divisions>2<\/divisions>\n        <key>\n          <fifths>0<\/fifths>\n          <\/key>\n        <time>\n          <beats>4<\/beats>\n          <beat-type>4<\/beat-type>\n          <\/time>\n        <staves>2<\/staves>\n        <clef number=\"1\">\n          <sign>G<\/sign>\n          <line>2<\/line>\n          <\/clef>\n        <clef number=\"2\">\n          <sign>F<\/sign>\n          <line>4<\/line>\n          <\/clef>\n        <\/attributes>\n      <note default-x=\"77.35\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"119.24\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"161.13\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"203.01\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>8<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"244.90\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"286.79\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note default-x=\"328.68\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"2\" width=\"341.94\">\n      <note default-x=\"12.00\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"55.20\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"98.41\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"141.61\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>8<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"184.81\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"228.02\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note default-x=\"271.22\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"3\" width=\"379.75\">\n      <print new-system=\"yes\">\n        <system-layout>\n          <system-margins>\n            <left-margin>21.00<\/left-margin>\n            <right-margin>-0.00<\/right-margin>\n            <\/system-margins>\n          <system-distance>150.00<\/system-distance>\n          <\/system-layout>\n        <staff-layout number=\"2\">\n          <staff-distance>65.00<\/staff-distance>\n          <\/staff-layout>\n        <\/print>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"223.30\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"266.31\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note default-x=\"309.33\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>8<\/duration>\n        <\/backup>\n      <note default-x=\"51.25\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"94.27\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"137.28\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"180.29\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"4\" width=\"359.49\">\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"189.31\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"233.64\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>eighth<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note default-x=\"277.97\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>8<\/duration>\n        <\/backup>\n      <note default-x=\"12.00\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">begin<\/beam>\n        <\/note>\n      <note default-x=\"56.33\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"100.66\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">continue<\/beam>\n        <\/note>\n      <note default-x=\"144.98\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>eighth<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <beam number=\"1\">end<\/beam>\n        <\/note>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <staff>2<\/staff>\n        <\/note>\n      <barline location=\"right\">\n        <bar-style>light-heavy<\/bar-style>\n        <\/barline>\n      <\/measure>\n    <\/part>\n  <\/score-partwise>\n"}, {"lesson": 1, "title": "Упражнение 2", "locked": true}, {"lesson": 1, "title": "Первый урок", "locked": true}, {"lesson": 1, "title": "Я повторяю ноты", "locked": true}, {"lesson": 1, "title": "Тренировка", "locked": true}, {"lesson": 1, "title": "Этюд", "locked": true}, {"lesson": 1, "title": "Пошел кот", "locked": true}, {"lesson": 1, "title": "Цветики", "locked": true}, {"lesson": 2, "title": "Считай до четырех", "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE score-partwise PUBLIC \"-//Recordare//DTD MusicXML 3.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\">\n<score-partwise>\n  <work>\n    <work-title>СЧитай до четырех<\/work-title>\n    <\/work>\n  <identification>\n    <creator type=\"composer\">и. Шаум<\/creator>\n    <encoding>\n      <software>MuseScore 2.1.0<\/software>\n      <encoding-date>2026-09-29<\/encoding-date>\n      <supports element=\"accidental\" type=\"yes\"/>\n      <supports element=\"beam\" type=\"yes\"/>\n      <supports element=\"print\" attribute=\"new-page\" type=\"yes\" value=\"yes\"/>\n      <supports element=\"print\" attribute=\"new-system\" type=\"yes\" value=\"yes\"/>\n      <supports element=\"stem\" type=\"yes\"/>\n      <\/encoding>\n    <\/identification>\n  <defaults>\n    <scaling>\n      <millimeters>7.05556<\/millimeters>\n      <tenths>40<\/tenths>\n      <\/scaling>\n    <page-layout>\n      <page-height>1683.36<\/page-height>\n      <page-width>1190.88<\/page-width>\n      <page-margins type=\"even\">\n        <left-margin>56.6929<\/left-margin>\n        <right-margin>56.6929<\/right-margin>\n        <top-margin>56.6929<\/top-margin>\n        <bottom-margin>113.386<\/bottom-margin>\n        <\/page-margins>\n      <page-margins type=\"odd\">\n        <left-margin>56.6929<\/left-margin>\n        <right-margin>56.6929<\/right-margin>\n        <top-margin>56.6929<\/top-margin>\n        <bottom-margin>113.386<\/bottom-margin>\n        <\/page-margins>\n      <\/page-layout>\n    <word-font font-family=\"FreeSerif\" font-size=\"10\"/>\n    <lyric-font font-family=\"FreeSerif\" font-size=\"11\"/>\n    <\/defaults>\n  <credit page=\"1\">\n    <credit-words default-x=\"595.44\" default-y=\"1626.67\" justify=\"center\" valign=\"top\" font-size=\"24\">Считай до четырех<\/credit-words>\n    <\/credit>\n  <credit page=\"1\">\n    <credit-words default-x=\"1134.19\" default-y=\"1526.67\" justify=\"right\" valign=\"bottom\" font-size=\"12\">И. Шаум<\/credit-words>\n    <\/credit>\n  <part-list>\n    <score-part id=\"P1\">\n      <part-name>Piano<\/part-name>\n      <part-abbreviation>Pno.<\/part-abbreviation>\n      <score-instrument id=\"P1-I1\">\n        <instrument-name>Piano<\/instrument-name>\n        <\/score-instrument>\n      <midi-device id=\"P1-I1\" port=\"1\"><\/midi-device>\n      <midi-instrument id=\"P1-I1\">\n        <midi-channel>1<\/midi-channel>\n        <midi-program>1<\/midi-program>\n        <volume>78.7402<\/volume>\n        <pan>0<\/pan>\n        <\/midi-instrument>\n      <\/score-part>\n    <\/part-list>\n  <part id=\"P1\">\n    <measure number=\"1\" width=\"305.90\">\n      <print>\n        <system-layout>\n          <system-margins>\n            <left-margin>21.00<\/left-margin>\n            <right-margin>0.00<\/right-margin>\n            <\/system-margins>\n          <top-system-distance>170.00<\/top-system-distance>\n          <\/system-layout>\n        <staff-layout number=\"2\">\n          <staff-distance>65.00<\/staff-distance>\n          <\/staff-layout>\n        <\/print>\n      <attributes>\n        <divisions>1<\/divisions>\n        <key>\n          <fifths>0<\/fifths>\n          <\/key>\n        <time>\n          <beats>4<\/beats>\n          <beat-type>4<\/beat-type>\n          <\/time>\n        <staves>2<\/staves>\n        <clef number=\"1\">\n          <sign>G<\/sign>\n          <line>2<\/line>\n          <\/clef>\n        <clef number=\"2\">\n          <sign>F<\/sign>\n          <line>4<\/line>\n          <\/clef>\n        <\/attributes>\n      <note default-x=\"77.35\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"140.39\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"203.08\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"2\" width=\"250.55\">\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note default-x=\"12.00\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"77.82\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"143.28\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"3\" width=\"249.49\">\n      <note default-x=\"12.00\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"70.97\" default-y=\"-45.00\">\n        <pitch>\n          <step>D<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"129.95\" default-y=\"-40.00\">\n        <pitch>\n          <step>E<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"188.92\" default-y=\"-45.00\">\n        <pitch>\n          <step>D<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"4\" width=\"250.55\">\n      <note default-x=\"12.00\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"77.82\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"143.28\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"5\" width=\"284.08\">\n      <print new-system=\"yes\">\n        <system-layout>\n          <system-margins>\n            <left-margin>21.00<\/left-margin>\n            <right-margin>0.00<\/right-margin>\n            <\/system-margins>\n          <system-distance>150.00<\/system-distance>\n          <\/system-layout>\n        <staff-layout number=\"2\">\n          <staff-distance>65.00<\/staff-distance>\n          <\/staff-layout>\n        <\/print>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note default-x=\"51.25\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"115.48\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"179.35\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"6\" width=\"254.82\">\n      <note default-x=\"12.00\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"79.01\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>1<\/voice>\n        <type>quarter<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <note default-x=\"145.65\" default-y=\"-50.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>1<\/voice>\n        <type>half<\/type>\n        <stem>up<\/stem>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>5<\/voice>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"7\" width=\"253.77\">\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note default-x=\"12.00\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"72.04\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"132.08\" default-y=\"-105.00\">\n        <pitch>\n          <step>A<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"192.13\" default-y=\"-100.00\">\n        <pitch>\n          <step>B<\/step>\n          <octave>3<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <\/measure>\n    <measure number=\"8\" width=\"263.82\">\n      <note>\n        <rest/>\n        <duration>4<\/duration>\n        <voice>1<\/voice>\n        <staff>1<\/staff>\n        <\/note>\n      <backup>\n        <duration>4<\/duration>\n        <\/backup>\n      <note default-x=\"12.00\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"79.01\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>1<\/duration>\n        <voice>5<\/voice>\n        <type>quarter<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <note default-x=\"145.65\" default-y=\"-95.00\">\n        <pitch>\n          <step>C<\/step>\n          <octave>4<\/octave>\n          <\/pitch>\n        <duration>2<\/duration>\n        <voice>5<\/voice>\n        <type>half<\/type>\n        <stem>down<\/stem>\n        <staff>2<\/staff>\n        <\/note>\n      <barline location=\"right\">\n        <bar-style>light-heavy<\/bar-style>\n        <\/barline>\n      <\/measure>\n    <\/part>\n  <\/score-partwise>\n"}, {"lesson": 2, "title": "Две новых ноты", "locked": true}, {"lesson": 2, "title": "Танцующие ноты", "locked": true}, {"lesson": 2, "title": "Вверх и вниз по клавишам", "locked": true}, {"lesson": 2, "title": "Щенок", "locked": true}, {"lesson": 2, "title": "Ракушки", "locked": true}, {"lesson": 2, "title": "Первая песенка осени", "locked": true}, {"lesson": 2, "title": "Как за синею рекой", "locked": true}, {"lesson": 2, "title": "Сластена", "locked": true}, {"lesson": 2, "title": "Этюд", "locked": true}, {"lesson": 2, "title": "Hallowee'en Witch", "locked": true}, {"lesson": 3, "title": "Этюд 2", "locked": true}, {"lesson": 3, "title": "Погружение", "locked": true}, {"lesson": 3, "title": "Вверх и вниз по звукоряду", "locked": true}, {"lesson": 3, "title": "Ding Dong", "locked": true}, {"lesson": 3, "title": "Old MacDonald", "locked": true}, {"lesson": 3, "title": "Новый горн", "locked": true}, {"lesson": 3, "title": "London Bridge", "locked": true}, {"lesson": 3, "title": "Маленький духовой оркестр", "locked": true}, {"lesson": 3, "title": "Клоун", "locked": true}, {"lesson": 3, "title": "Этюд", "locked": true}, {"lesson": 3, "title": "Снеговик", "locked": true}, {"lesson": 3, "title": "Кузнечик", "locked": true}, {"lesson": 3, "title": "Башкирская песня", "locked": true}, {"lesson": 3, "title": "Была у меня однажды старая серая лошадь", "locked": true}, {"lesson": 3, "title": "Пьеска", "locked": true}, {"lesson": 3, "title": "Весеннее утро", "locked": true}, {"lesson": 3, "title": "Катаюсь на пони", "locked": true}, {"lesson": 3, "title": "Happy birthday", "locked": true}, {"lesson": 3, "title": "Щенок", "locked": true}, {"lesson": 3, "title": "Ярмарка", "locked": true}, {"lesson": 3, "title": "Папино кресло-качалка", "locked": true}, {"lesson": 3, "title": "Пони Звездочка", "locked": true}, {"lesson": 4, "title": "Прогресс", "locked": true}, {"lesson": 4, "title": "Этюд Гнесиной", "locked": true}, {"lesson": 4, "title": "Двумя руками", "locked": true}, {"lesson": 4, "title": "Отличное настроение", "locked": true}, {"lesson": 4, "title": "О, куда, О куда?", "locked": true}, {"lesson": 4, "title": "Канадская народная песня", "locked": true}, {"lesson": 4, "title": "Гномы", "locked": true}, {"lesson": 4, "title": "Часы большие и маленькие", "locked": true}, {"lesson": 4, "title": "Ковер-самолет", "locked": true}, {"lesson": 4, "title": "Колыбельная Дремы", "locked": true}, {"lesson": 4, "title": "Боцман", "locked": true}, {"lesson": 4, "title": "Музыканты", "locked": true}, {"lesson": 4, "title": "Вальс толстого Барсика", "locked": true}, {"lesson": 4, "title": "Бабушка-ворчунья", "locked": true}, {"lesson": 4, "title": "Я не пойду к Кейси", "locked": true}, {"lesson": 4, "title": "Этюд Гумберта", "locked": true}, {"lesson": 4, "title": "Бабушкина сказка", "locked": true}, {"lesson": 4, "title": "За малиной", "locked": true}, {"lesson": 4, "title": "Качели", "locked": true}, {"lesson": 4, "title": "Балалайка", "locked": true}, {"lesson": 4, "title": "Помощница", "locked": true}, {"lesson": 4, "title": "Шотландская народная песня", "locked": true}, {"lesson": 4, "title": "Зимний ветер", "locked": true}, {"lesson": 5, "title": "В лесу", "locked": true}, {"lesson": 5, "title": "Ой, лопнул обруч", "locked": true}, {"lesson": 5, "title": "Мелодия мамы и папы", "locked": true}, {"lesson": 5, "title": "Во поле березка стояла", "locked": true}, {"lesson": 5, "title": "Сулико", "locked": true}, {"lesson": 5, "title": "Мишки в цирке", "locked": true}, {"lesson": 5, "title": "Таинственное шествие", "locked": true}, {"lesson": 5, "title": "Там за горкою деревня", "locked": true}, {"lesson": 5, "title": "Молдавская народная песня", "locked": true}, {"lesson": 5, "title": "Гроссфатер", "locked": true}, {"lesson": 6, "title": "Упражнение 1", "locked": true}, {"lesson": 6, "title": "Упражнение 2", "locked": true}, {"lesson": 6, "title": "Упражнение 3", "locked": true}, {"lesson": 6, "title": "Акробаты", "locked": true}, {"lesson": 6, "title": "Холодная луна", "locked": true}, {"lesson": 6, "title": "Колыбельная", "locked": true}, {"lesson": 6, "title": "На репетиции ансамбля", "locked": true}, {"lesson": 6, "title": "Старик Хоттабыч", "locked": true}, {"lesson": 6, "title": "Театр Буратино", "locked": true}, {"lesson": 6, "title": "Обязательный этюд", "locked": true}, {"lesson": 6, "title": "Прогулка по октавам", "locked": true}]</script>
+<header class="app-header"><div><h1>Интерактивная библиотека пьес</h1><div class="sub">Курс «Ноты — легко» · Проверка чтения нот в пьесах</div></div><button class="fullscreen-btn" id="fullscreenBtn" type="button">⛶ На весь экран</button></header>
+<div class="workspace">
+<aside aria-label="Панель управления" class="sidebar">
+<section class="control-section"><h2>Устройство</h2><button class="primary-btn full-width" id="connectBtn">Подключить MIDI</button><p class="section-help">Подключи MIDI-клавиатуру и разреши доступ браузеру.</p></section>
+<section class="control-section"><h2>Режим</h2><div class="mode-toggle segmented"><button id="modeRhythmBtn">Ноты по порядку</button><button class="active" id="modeClassicBtn">Вся пьеса</button></div></section>
+<section class="control-section"><h2>Библиотека пьес</h2><button class="full-width" id="libraryBtn">📁 Выбрать пьесу</button><div class="keyboard-hint" id="currentPieceLabel"></div><div id="libraryPanel" style="display:none;"></div></section>
+<section class="control-section"><button class="restart-fragment-btn" id="resetRhythmBtn">⟲ Начать заново</button></section>
+<section class="control-section"><div class="rhythm-controls" id="rhythmControls" style="display:none;"><label>Скорость <input id="speedSlider" max="10" min="1" type="range" value="5"/></label><span class="section-help">Медленнее — Быстрее</span></div><div class="stats"><div class="card"><b>Верно</b><div class="val right" id="correctCount">0</div></div><div class="card"><b>Ошибки</b><div class="val wrong" id="wrongCount">0</div></div><div class="card"><b>Точность</b><div class="val" id="accuracy">—</div></div></div></section>
+</aside>
+<main class="sheet-area"><div id="scroll-viewport"><div id="playhead-line"></div><div id="osmd-container"></div><div id="library-welcome"><div class="welcome-message">Чтобы начать, выберите пьесу из библиотеки</div></div></div></main>
+</div>
+<div id="status" role="status">Ожидаю MIDI-устройство… Нажми «Подключить MIDI» и разреши доступ браузеру.</div>
+<script>
+// ===================== БИБЛИОТЕКА ПЬЕС =====================
+// Модуль 1: шесть уроков, у каждого свой диапазон нот и сборник пьес для тренировки.
+// Пьесы хранятся в JSON-блоке #piece-library-data в формате {lesson, title, xml}.
+// Ученикам ничего загружать не нужно — они выбирают урок и пьесу из списка.
+const LESSONS = [
+  { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 },
+];
+
+// Тестовая гамма нужна только для проверки работы тренажёра — лежит отдельно от уроков
+function readStoredLibrary(){
+  try{
+    const raw = document.getElementById('piece-library-data').textContent;
+    const arr = JSON.parse(raw || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch(e){ return []; }
+}
+
+let pieceLibrary = readStoredLibrary(); // Демо: только две пьесы содержат MusicXML
+
+// --- Библиотека в виде папок и файлов (как проводник): урок = папка, пьеса = файл ---
+const libraryPanel = document.getElementById('libraryPanel');
+const libraryBtn = document.getElementById('libraryBtn');
+const currentPieceLabel = document.getElementById('currentPieceLabel');
+let currentPieceIndex = 0;          // индекс открытой пьесы в pieceLibrary (-1 — своя загруженная)
+const openFolders = new Set();      // какие папки сейчас раскрыты
+
+function setCurrentPieceLabel(text){
+  currentPieceLabel.textContent = text ? 'Сейчас: ' + text : '';
+}
+
+function folderKeyOf(piece){
+  return LESSONS.some(l => l.id === piece.lesson) ? piece.lesson : 'other';
+}
+
+function renderLibraryTree(){
+  libraryPanel.innerHTML = '';
+  const folders = LESSONS.map(l => ({ key: l.id, name: `Урок ${l.id}`, items: [] }));
+  const other = { key: 'other', name: 'Тест', items: [] };
+  pieceLibrary.forEach((piece, i) => {
+    const folder = folders.find(f => f.key === piece.lesson) || other;
+    folder.items.push({ piece, i });
+  });
+  if (other.items.length) folders.push(other);
+
+  folders.forEach(folder => {
+    const isOpen = openFolders.has(folder.key);
+    const row = document.createElement('div');
+    row.className = 'lib-folder' + (isOpen ? ' open' : '');
+    const arrow = document.createElement('span'); arrow.className = 'lib-arrow'; arrow.textContent = '▶';
+    const icon = document.createElement('span'); icon.textContent = isOpen ? '📂' : '📁';
+    const name = document.createElement('span'); name.textContent = folder.name;
+    row.append(arrow, icon, name);
+    row.addEventListener('click', () => {
+      if (openFolders.has(folder.key)) openFolders.delete(folder.key);
+      else openFolders.add(folder.key);
+      renderLibraryTree();
+    });
+    libraryPanel.appendChild(row);
+
+    if (!isOpen) return;
+    if (!folder.items.length){
+      const empty = document.createElement('div');
+      empty.className = 'lib-empty';
+      empty.textContent = '(пока пусто)';
+      libraryPanel.appendChild(empty);
+      return;
+    }
+    folder.items.forEach(({ piece, i }) => {
+      const file = document.createElement('div');
+      file.className = 'lib-file' + (i === currentPieceIndex ? ' active' : '');
+      const locked = !!piece.locked || !piece.xml;
+      if (locked){ file.classList.add('locked'); file.title = 'Доступно в полной версии курса'; }
+      const fileIcon = document.createElement('span'); fileIcon.textContent = locked ? '🔒' : '🎵';
+      const title = document.createElement('span'); title.textContent = piece.title;
+      file.append(fileIcon, title);
+      if (!locked) file.addEventListener('click', () => selectPiece(i));
+      libraryPanel.appendChild(file);
+    });
+  });
+}
+
+function selectPiece(i){
+  const piece = pieceLibrary[i];
+  if (!piece || piece.locked || !piece.xml) return;
+  currentPieceIndex = i;
+  document.getElementById('scroll-viewport').classList.add('piece-loaded');
+  setCurrentPieceLabel(piece.title);
+  libraryPanel.style.display = 'none'; // после выбора пьесы список сворачивается, чтобы были видны ноты
+  renderLibraryTree();
+  loadExercise(piece.xml).catch(err => {
+    statusEl.textContent = 'Не удалось загрузить пьесу: ' + err.message;
+    statusEl.className = 'bad';
+    console.error(err);
+  });
+}
+
+libraryBtn.addEventListener('click', () => {
+  const opening = libraryPanel.style.display === 'none';
+  if (opening && pieceLibrary[currentPieceIndex]){
+    openFolders.add(folderKeyOf(pieceLibrary[currentPieceIndex])); // раскрываем папку с открытой сейчас пьесой
+  }
+  renderLibraryTree();
+  libraryPanel.style.display = opening ? 'block' : 'none';
+});
+
+setCurrentPieceLabel(pieceLibrary[0].title);
+
+let currentIndex = 0;
+let satisfiedInStep = new Set();
+let correct = 0, wrong = 0;
+let steps = [];        // steps[i] = массив индексов в allNotes, звучащих одновременно на шаге i
+let expectedFlat = []; // expectedFlat[i] = MIDI-номер ноты allNotes[i]
+let numSteps = 0;
+
+const statusEl = document.getElementById('status');
+const correctEl = document.getElementById('correctCount');
+const wrongEl = document.getElementById('wrongCount');
+const accEl = document.getElementById('accuracy');
+
+function updateStats(){
+  correctEl.textContent = correct;
+  wrongEl.textContent = wrong;
+  const total = correct+wrong;
+  accEl.textContent = total ? Math.round(100*correct/total)+'%' : '—';
+}
+
+function noteName(n){
+  const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  return names[n%12]+(Math.floor(n/12)-1);
+}
+
+let osmd;
+let allNotes = [];        // плоский список нотных голов (GraphicalNote), порядок появления в партитуре
+let noteheadEls = [];     // соответствующие им реальные SVG-элементы на экране (1:1 с allNotes)
+
+// Достаём SVG-элемент конкретной ноты напрямую из её собственного объекта отрисовки (VexFlow),
+// а не по порядку появления в DOM — так сопоставление верное независимо от того,
+// в каком порядке библиотека физически рисует разные нотоносцы.
+function getNoteSVGElement(graphicalNote){
+  try{
+    const vf = graphicalNote.vfnote && graphicalNote.vfnote[0];
+    return (vf && vf.attrs && vf.attrs.el) ? vf.attrs.el : null;
+  } catch(e){ return null; }
+}
+
+function syncNoteheadElements(){
+  noteheadEls = allNotes.map(n => getNoteSVGElement(n));
+}
+
+function applyZoomForMode(){
+  // Уровень 1 (Ритм) — крупный масштаб для скролла.
+  // Уровень 2 (Разбор нот) — масштаб покрупнее обычного, но поле остаётся тем же (~A4),
+  // так что нот на строку помещается меньше — это и даёт желаемый эффект "крупнее и меньше тактов в строке".
+  osmd.zoom = currentMode === 'rhythm' ? 2.0 : 1.6;
+}
+
+let lastLoadedXML = ''; // сохраняем «сырой» текст файла — понадобится для точного определения длительности последней ноты
+
+async function loadExercise(xmlString){
+  lastLoadedXML = xmlString;
+  lastScrolledSystem = -1; // новая пьеса — прокрутку по строкам начинаем заново
+  await osmd.load(xmlString);
+  applyZoomForMode(); // load() сбрасывает zoom на 1.0 внутри себя, поэтому выставляем заново уже после load()
+  osmd.render();
+
+  allNotes = [];
+  osmd.GraphicSheet.MeasureList.forEach(measureRow => {
+    measureRow.forEach(measure => {
+      if (!measure) return;
+      measure.staffEntries.forEach(entry => {
+        entry.graphicalVoiceEntries.forEach(voiceEntry => {
+          voiceEntry.notes.forEach(note => {
+            if (note.sourceNote && !note.sourceNote.isRest()) allNotes.push(note);
+          });
+        });
+      });
+    });
+  });
+
+  syncNoteheadElements();
+
+  expectedFlat = allNotes.map(n => n.sourceNote.Pitch ? n.sourceNote.Pitch.getHalfTone() + 12 : null);
+
+  const groups = new Map();
+  allNotes.forEach((note, idx) => {
+    const ts = note.sourceNote.getAbsoluteTimestamp().RealValue;
+    const key = ts.toFixed(6);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(idx);
+  });
+  steps = Array.from(groups.keys())
+    .map(Number).sort((a,b) => a-b)
+    .map(k => groups.get(k.toFixed(6)));
+  numSteps = steps.length;
+
+  currentIndex = 0;
+  satisfiedInStep = new Set();
+  correct = 0; wrong = 0;
+  updateStats();
+
+  if (currentMode === 'rhythm'){
+    resetRhythm();
+  } else {
+    // В классическом режиме — партитура заново подгоняется под ширину блока (без скролла)
+    document.getElementById('osmd-container').style.width = '';
+    osmd.render();
+    syncNoteheadElements();
+    highlightExpected();
+  }
+}
+
+async function renderScore(){
+  if (typeof opensheetmusicdisplay === 'undefined'){
+    document.getElementById('osmd-container').innerHTML =
+      '<div style="color:#b8462f;font-family:Arial;padding:10px;">Не удалось загрузить библиотеку нотной графики (opensheetmusicdisplay) с CDN. '+
+      'Проверь интернет-соединение или попробуй открыть файл ещё раз — иногда CDN не успевает ответить при первой загрузке.</div>';
+    return;
+  }
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
+    drawTitle:false,
+    drawPartNames:false, // убирает подпись "Piano" перед акколадой и освобождает от неё место
+    followCursor:true
+  });
+  // Поля страницы поменьше — в единицах OSMD (≈10 px = 1 unit при zoom=1)
+  osmd.EngravingRules.PageLeftMargin = 2;
+  osmd.EngravingRules.PageRightMargin = 2;
+  osmd.EngravingRules.PageTopMargin = 3;
+  osmd.EngravingRules.PageBottomMargin = 3;
+  // До выбора пьесы ноты не отображаем.
+}
+
+const COLOR_WAIT = '#8d6b3f';
+const COLOR_RIGHT = '#3d7a4f';
+const COLOR_WRONG = '#b8462f';
+const COLOR_DEFAULT = '#000000';
+
+// Красим конкретный DOM-элемент нотной головки по индексу — не через общий объект ноты.
+// Работает и с элементами библиотеки (группа с вложенными path/ellipse), и с нашими
+// собственными <ellipse> из режима "Ритм" (сама голова — уже целевой элемент).
+function paintNote(index, color){
+  const el = noteheadEls[index];
+  if (!el) return;
+  if (el.tagName === 'ellipse' || el.tagName === 'path' || el.tagName === 'circle'){
+    // полая нотная головка (половинная/целая) красится по обводке, заливная — по заливке
+    if (el.getAttribute('fill') === '#fff') el.setAttribute('stroke', color);
+    else el.setAttribute('fill', color);
+  }
+  el.querySelectorAll('path, ellipse, circle').forEach(shape => {
+    shape.setAttribute('fill', color);
+  });
+}
+
+function repaintAll(){
+  allNotes.forEach((n, i) => {
+    const stepIdx = steps.findIndex(s => s.includes(i));
+    let color = COLOR_DEFAULT;
+    if (stepIdx !== -1){
+      if (stepIdx < currentIndex) color = COLOR_RIGHT;
+      else if (stepIdx === currentIndex) color = satisfiedInStep.has(i) ? COLOR_RIGHT : COLOR_WAIT;
+    }
+    paintNote(i, color);
+  });
+}
+
+function highlightExpected(){
+  repaintAll();
+  if (currentIndex >= numSteps){
+    statusEl.textContent = 'Упражнение завершено! Точность: ' + accEl.textContent;
+    statusEl.className = 'ok';
+    return;
+  }
+  const size = steps[currentIndex].length;
+  statusEl.textContent = size > 1
+    ? `Сыграй подсвеченные ноты одновременно (шаг ${currentIndex+1} из ${numSteps})`
+    : `Сыграй подсвеченную ноту (шаг ${currentIndex+1} из ${numSteps})`;
+  statusEl.className = '';
+
+  // Автопрокрутка на Уровне 2, когда пьеса не помещается на экране.
+  // Ориентир — вся строка нот (система) целиком, а не текущая нота: тогда положение не зависит от
+  // того, играет верхняя или нижняя рука, и страница не качается. Прокручиваем только при
+  // переходе на новую строку и только если она не помещается в видимую область.
+  if (currentMode === 'classic') autoScrollToCurrentSystem();
+}
+
+let lastScrolledSystem = -1;
+
+// К какой строке нот (системе) относится каждый шаг: внутри строки ноты идут слева направо,
+// при переносе на новую строку левая граница резко возвращается назад
+function stepSystemIndexes(){
+  const res = [];
+  let sys = 0, prevLeft = null;
+  steps.forEach(idxArr => {
+    const lefts = idxArr.map(i => noteheadEls[i] && noteheadEls[i].getBoundingClientRect().left)
+                        .filter(v => typeof v === 'number');
+    const left = lefts.length ? Math.min(...lefts) : prevLeft;
+    if (prevLeft !== null && left !== null && left < prevLeft - 20) sys++;
+    res.push(sys);
+    if (left !== null) prevLeft = left;
+  });
+  return res;
+}
+
+function autoScrollToCurrentSystem(){
+  if (currentIndex >= numSteps) return;
+  const sysOf = stepSystemIndexes();
+  const sys = sysOf[currentIndex];
+  if (sys === lastScrolledSystem) return; // та же строка — ничего не двигаем
+  lastScrolledSystem = sys;
+
+  // вертикальные границы всей строки: по всем нотам всех её шагов (обе руки)
+  let top = Infinity, bottom = -Infinity;
+  steps.forEach((idxArr, si) => {
+    if (sysOf[si] !== sys) return;
+    idxArr.forEach(i => {
+      const r = noteheadEls[i] && noteheadEls[i].getBoundingClientRect();
+      if (r){ top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); }
+    });
+  });
+  if (top === Infinity) return;
+
+  const margin = 40;
+  if (top >= margin && bottom <= window.innerHeight - margin) return; // строка и так целиком видна
+
+  // абсолютная позиция (а не относительный сдвиг) — повторный вызов во время плавной прокрутки безвреден
+  const docCenter = (top + bottom) / 2 + window.scrollY;
+  window.scrollTo({ top: Math.max(0, docCenter - window.innerHeight / 2), behavior: 'smooth' });
+}
+
+// Звуковой сигнал на неверную ноту — короткий резкий тон через Web Audio API
+let audioCtx = null;
+function playTone(freq, duration, type){
+  try{
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e){ /* Web Audio недоступен — просто без звука */ }
+}
+function playErrorSound(){ playTone(180, 0.22, 'square'); }
+// Отдельный, более мягкий сигнал на "рано нажал" — чтобы не путать с ошибкой в ноте
+function playEarlySound(){ playTone(320, 0.12, 'sine'); }
+
+// Пока линия едет к следующей ноте (в режиме "Ритм"), нажатия не засчитываются —
+// это важно, чтобы ученик не мог "обогнать" движение и нажимать ноты заранее
+let lineIsMoving = false;
+
+// Восстанавливает обычный текст статуса для текущего шага (используется после отпускания "ранней" клавиши)
+function highlightExpectedRhythmStatus(){
+  if (currentIndex >= numSteps) return;
+  const size = steps[currentIndex].length;
+  statusEl.textContent = size > 1
+    ? `Сыграй подсвеченные ноты одновременно (шаг ${currentIndex+1} из ${numSteps})`
+    : `Сыграй подсвеченную ноту (шаг ${currentIndex+1} из ${numSteps})`;
+  statusEl.className = '';
+}
+
+function handleNoteOn(midiNote){
+  if (currentMode === 'rhythm' && lineIsMoving){
+    // Линия ещё в пути — замораживаем её на месте (один раз, при первом "раннем" нажатии)
+    const wasAlreadyPaused = isPausedForEarly;
+    if (!wasAlreadyPaused) playEarlySound();
+    pauseForEarlyPress();
+    heldEarlyNotes.add(midiNote);
+    return;
+  }
+  if (currentIndex >= numSteps) return;
+  const stepIndices = steps[currentIndex];
+  const candidates = stepIndices.filter(i => !satisfiedInStep.has(i));
+  const matchIdx = candidates.find(i => expectedFlat[i] === midiNote);
+
+  if (matchIdx !== undefined){
+    satisfiedInStep.add(matchIdx);
+    paintNote(matchIdx, COLOR_RIGHT);
+    if (satisfiedInStep.size === stepIndices.length){
+      correct++;
+      statusEl.className = 'ok';
+      statusEl.textContent = 'Верно!';
+      const justPlayedIndex = currentIndex;
+      currentIndex++;
+      satisfiedInStep = new Set();
+      updateStats();
+      if (currentMode === 'rhythm'){
+        // Блокируем приём нажатий сразу же, не дожидаясь начала анимации через 350мс —
+        // иначе повторное/дребезжащее нажатие в этом окне могло попасть на уже
+        // переключившийся шаг и ложно засчитаться как ошибка
+        lineIsMoving = true;
+        setTimeout(() => {
+          repaintAll();
+          if (currentIndex >= numSteps){
+            // Это была последняя нота — едем ещё раз, до финальной черты, чтобы прожить
+            // и её длительность тоже, а не останавливаться прямо на самой ноте
+            statusEl.textContent = 'Последняя нота — держим темп до конца…';
+            statusEl.className = '';
+            moveToFinishLine(stepDurations[justPlayedIndex]);
+          } else {
+            moveToStep(currentIndex, stepDurations[justPlayedIndex]);
+            const size = steps[currentIndex].length;
+            statusEl.textContent = size > 1
+              ? `Сыграй подсвеченные ноты одновременно (шаг ${currentIndex+1} из ${numSteps})`
+              : `Сыграй подсвеченную ноту (шаг ${currentIndex+1} из ${numSteps})`;
+            statusEl.className = '';
+          }
+        }, 350);
+      } else {
+        setTimeout(highlightExpected, 350);
+      }
+    } else {
+      statusEl.textContent = 'Верно — жду остальные ноты этого шага.';
+    }
+  } else {
+    wrong++;
+    playErrorSound();
+    statusEl.className = 'bad';
+    statusEl.textContent = `Не та нота (сыграно: ${noteName(midiNote)})`;
+    updateStats();
+    candidates.forEach(i => paintNote(i, COLOR_WRONG));
+    setTimeout(() => {
+      candidates.forEach(i => paintNote(i, satisfiedInStep.has(i) ? COLOR_RIGHT : COLOR_WAIT));
+    }, 400);
+  }
+}
+
+// Клавиша отпущена — если это была одна из "ранних" зажатых нот и других таких не осталось,
+// возобновляем движение линии с того места, где она была заморожена
+function handleNoteOff(midiNote){
+  if (heldEarlyNotes.has(midiNote)){
+    heldEarlyNotes.delete(midiNote);
+    if (heldEarlyNotes.size === 0 && isPausedForEarly) resumeFromEarlyPress();
+  }
+}
+
+// ===================== РЕЖИМ "УРОВЕНЬ 1: РИТМ" =====================
+// Та же классическая нотная запись, которую рисует библиотека (как на Уровне 2),
+// развёрнутая в одну прокручиваемую строку. Расстояние между нотами — то, что
+// естественно даёт нотная вёрстка библиотеки (мы его не трогаем и не форсируем).
+// Длительность влияет на ВРЕМЯ движения линии к следующей ноте (постоянный темп),
+// а не на дистанцию — так короче нота ощущается быстрым переходом, длиннее — долгим.
+
+let currentMode = 'classic';
+let stepBeats = [];      // момент начала каждого шага, в долях (beats) — из реальных длительностей MusicXML
+let stepDurations = [];  // длительность шага i до следующего шага, в долях
+
+let SECONDS_PER_BEAT = 0.8; // "темп": сколько реального времени длится одна доля — регулируется ползунком
+const SPEED_MIN_SEC = 0.25; // самое быстрое движение (ползунок вправо)
+const SPEED_MAX_SEC = 3.2;  // самое медленное движение (ползунок влево) — расширено для начинающих
+
+function updateSpeedFromSlider(value){
+  // ползунок 1..10, где 10 — быстрее всего
+  const t = (value - 1) / 9;
+  SECONDS_PER_BEAT = SPEED_MAX_SEC - t * (SPEED_MAX_SEC - SPEED_MIN_SEC);
+}
+
+function stepScreenX(stepIndex){
+  // Экранная X-координата первой ноты шага — берём как её реально нарисовала библиотека
+  const idx = steps[stepIndex][0];
+  const el = noteheadEls[idx];
+  const container = document.getElementById('osmd-container');
+  if (!el || !container) return null;
+  return el.getBoundingClientRect().left - container.getBoundingClientRect().left;
+}
+
+// Читает длительность каждой ноты (в "долях", по твоим правилам: целая=4, половинная=2,
+// четверть=1, восьмая=0.5) прямо из текста MusicXML-файла — в том же порядке, в каком
+// ноты появляются в allNotes (паузы пропускаются, как и там).
+function extractNoteBeatCounts(xml){
+  const typeMap = {whole:4, half:2, quarter:1, eighth:0.5, '16th':0.25, '32nd':0.125};
+  const blocks = xml.match(/<note\b[\s\S]*?<\/note>/g) || [];
+  const beats = [];
+  blocks.forEach(b => {
+    if (/<rest\b/.test(b)) return; // паузы не входят в allNotes — пропускаем и здесь
+    const typeMatch = b.match(/<type>([\w-]+)<\/type>/);
+    let val = typeMatch ? typeMap[typeMatch[1]] : undefined;
+    if (val !== undefined){
+      const dots = (b.match(/<dot\s*\/>/g) || []).length;
+      if (dots === 1) val *= 1.5;
+      else if (dots >= 2) val *= 1.75;
+    }
+    beats.push(val !== undefined ? val : null);
+  });
+  return beats;
+}
+
+function computeStepTimings(){
+  stepBeats = steps.map(idxArr => allNotes[idxArr[0]].sourceNote.getAbsoluteTimestamp().RealValue);
+  stepDurations = stepBeats.map((t, i) => i < stepBeats.length - 1 ? stepBeats[i+1] - t : null);
+
+  // Длительность последней ноты не с чем сравнить по времени (следующей ноты нет), поэтому берём
+  // её явную длительность из текста файла (<type>) и переводим в те же единицы, что и остальные —
+  // калибруясь по соседней надёжной ноте, чтобы не гадать про внутренний масштаб единиц библиотеки.
+  const lastIdx = stepDurations.length - 1;
+  if (lastIdx >= 0){
+    const trueBeats = extractNoteBeatCounts(lastLoadedXML);
+    let calibrated = null;
+    if (lastIdx > 0 && stepDurations[lastIdx-1] != null){
+      const refBeat = trueBeats[steps[lastIdx-1][0]];
+      const lastBeat = trueBeats[steps[lastIdx][0]];
+      if (refBeat && lastBeat){
+        const scale = stepDurations[lastIdx-1] / refBeat; // "сколько единиц библиотеки в одной доле" — по факту, а не по догадке
+        calibrated = lastBeat * scale;
+      }
+    }
+    stepDurations[lastIdx] = calibrated ?? (lastIdx > 0 ? stepDurations[lastIdx-1] : 1);
+  }
+}
+
+// --- Движение линии с возможностью "заморозки" на месте, если ученик нажал рано ---
+let currentContainerX = 0;   // последняя стабильная позиция контейнера (px)
+let currentTravel = null;    // {fromX, toX, duration, startTime, remainingDuration} — текущий переезд
+let moveCompletionTimer = null;
+let isPausedForEarly = false;
+let heldEarlyNotes = new Set(); // какие ноты сейчас зажаты "рано"
+
+// Запускает переезд линии к абсолютной X-координате (в системе координат контейнера).
+// onComplete вызывается по завершении переезда (в т.ч. если он был "заморожен" ранним нажатием
+// и потом возобновлён — задержка просто добавляется, колбэк всё равно сработает в конце).
+function startTravel(toX, travelBeats, onComplete){
+  const container = document.getElementById('osmd-container');
+  const duration = travelBeats ? Math.max(0.1, travelBeats * SECONDS_PER_BEAT) : 0.3;
+
+  currentTravel = { fromX: currentContainerX, toX, duration, startTime: performance.now(), onComplete };
+  container.style.transition = `transform ${duration}s linear`;
+  container.style.transform = `translateX(${toX}px)`;
+
+  lineIsMoving = true;
+  clearTimeout(moveCompletionTimer);
+  moveCompletionTimer = setTimeout(completeTravel, duration*1000);
+}
+
+function completeTravel(){
+  lineIsMoving = false;
+  if (currentTravel){
+    currentContainerX = currentTravel.toX;
+    const cb = currentTravel.onComplete;
+    currentTravel = null;
+    if (cb) cb();
+  }
+}
+
+// travelBeats — длительность (в долях) ноты, которую только что сыграли: она определяет,
+// сколько реального времени займёт переезд линии к следующей ноте (постоянный темп, не скорость в px)
+function moveToStep(stepIndex, travelBeats, onComplete){
+  const viewport = document.getElementById('scroll-viewport');
+  const playheadX = viewport.clientWidth * 0.25;
+  const targetIndex = Math.min(stepIndex, numSteps - 1);
+  const x = stepScreenX(targetIndex);
+  if (x === null) return;
+  startTravel(playheadX - x, travelBeats, onComplete);
+}
+
+// Оцениваем позицию финальной черты через реальное соотношение "пикселей на долю" в этой же
+// партитуре — беру медиану по всем соседним нотам (устойчивее к случайным перекосам в одном месте,
+// чем если бы я взяла только последнюю пару). Это надёжнее, чем гадать по внутренней разметке SVG.
+function getFinishLineX(lastNoteDuration){
+  const lastIdx = numSteps - 1;
+  const xLast = stepScreenX(lastIdx);
+  if (xLast === null) return null;
+
+  const ratios = [];
+  for (let i = 0; i < numSteps - 1; i++){
+    const xi = stepScreenX(i), xn = stepScreenX(i+1);
+    if (xi !== null && xn !== null && stepDurations[i] > 0) ratios.push((xn - xi) / stepDurations[i]);
+  }
+  ratios.sort((a,b) => a-b);
+  const pxPerBeat = ratios.length ? ratios[Math.floor(ratios.length/2)] : 150;
+
+  return xLast + pxPerBeat * lastNoteDuration;
+}
+
+function moveToFinishLine(lastNoteDuration){
+  const viewport = document.getElementById('scroll-viewport');
+  const playheadX = viewport.clientWidth * 0.25;
+  const endX = getFinishLineX(lastNoteDuration);
+  if (endX === null) return;
+
+  startTravel(playheadX - endX, lastNoteDuration, () => {
+    statusEl.textContent = 'Упражнение завершено! Точность: ' + accEl.textContent;
+    statusEl.className = 'ok';
+  });
+}
+
+// Ученик нажал клавишу, пока линия ещё в пути — замораживаем её на текущем месте и красим красным
+function pauseForEarlyPress(){
+  if (!lineIsMoving || !currentTravel || isPausedForEarly) return;
+  const container = document.getElementById('osmd-container');
+  clearTimeout(moveCompletionTimer);
+
+  const elapsed = (performance.now() - currentTravel.startTime) / 1000;
+  const frac = Math.min(1, elapsed / currentTravel.duration);
+  const freezeX = currentTravel.fromX + (currentTravel.toX - currentTravel.fromX) * frac;
+
+  container.style.transition = 'none';
+  container.style.transform = `translateX(${freezeX}px)`;
+  currentTravel.remainingDuration = Math.max(0.05, currentTravel.duration * (1 - frac));
+  currentTravel.pausedAtX = freezeX;
+
+  isPausedForEarly = true;
+  document.getElementById('playhead-line').classList.add('held-early');
+  statusEl.textContent = '✋ Отпусти клавишу — ты сыграл(а) раньше времени.';
+  statusEl.className = 'early';
+}
+
+// Клавиша отпущена, других "ранних" клавиш не осталось — едем дальше с того же места
+function resumeFromEarlyPress(){
+  if (!isPausedForEarly || !currentTravel) return;
+  const container = document.getElementById('osmd-container');
+
+  isPausedForEarly = false;
+  document.getElementById('playhead-line').classList.remove('held-early');
+  if (currentIndex < numSteps) highlightExpectedRhythmStatus();
+
+  const dur = currentTravel.remainingDuration;
+  const toX = currentTravel.toX;
+  container.style.transition = `transform ${dur}s linear`;
+  container.style.transform = `translateX(${toX}px)`;
+
+  // Обновляем точку отсчёта — если ученик поставит на паузу ещё раз в этом же переезде,
+  // расчёт "сколько уже проехали" должен идти от момента возобновления, а не от самого начала
+  currentTravel.fromX = currentTravel.pausedAtX;
+  currentTravel.duration = dur;
+  currentTravel.startTime = performance.now();
+
+  clearTimeout(moveCompletionTimer);
+  moveCompletionTimer = setTimeout(completeTravel, dur*1000);
+}
+
+function resetRhythm(){
+  currentIndex = 0;
+  satisfiedInStep = new Set();
+  correct = 0; wrong = 0;
+  lineIsMoving = false;
+  isPausedForEarly = false;
+  heldEarlyNotes = new Set();
+  currentTravel = null;
+  clearTimeout(moveCompletionTimer);
+  document.getElementById('playhead-line').classList.remove('held-early');
+  updateStats();
+
+  const container = document.getElementById('osmd-container');
+  container.style.transition = 'none';
+  container.style.width = Math.max(2000, numSteps * 320) + 'px';
+  applyZoomForMode();
+  osmd.render();
+  syncNoteheadElements();
+  computeStepTimings();
+
+  repaintAll();
+  requestAnimationFrame(() => {
+    const viewport = document.getElementById('scroll-viewport');
+    const playheadX = viewport.clientWidth * 0.25;
+    const x0 = stepScreenX(0);
+    const startX = x0 !== null ? playheadX - x0 : 0;
+    container.style.transition = 'none';
+    container.style.transform = `translateX(${startX}px)`;
+    currentContainerX = startX;
+  });
+
+  statusEl.textContent = numSteps
+    ? `Сыграй подсвеченную ноту (шаг 1 из ${numSteps})`
+    : 'Упражнение пустое.';
+  statusEl.className = '';
+}
+
+function setMode(mode){
+  currentMode = mode;
+  document.getElementById('modeRhythmBtn').classList.toggle('active', mode==='rhythm');
+  document.getElementById('modeClassicBtn').classList.toggle('active', mode==='classic');
+  document.getElementById('rhythmControls').style.display = mode==='rhythm' ? 'flex' : 'none';
+  document.getElementById('scroll-viewport').classList.toggle('classic-mode', mode==='classic');
+  document.getElementById('scroll-viewport').classList.toggle('rhythm-mode', mode==='rhythm');
+
+  if (!document.getElementById('scroll-viewport').classList.contains('piece-loaded')) return;
+  if (mode === 'rhythm'){
+    resetRhythm();
+  } else {
+    document.getElementById('osmd-container').style.width = '';
+    document.getElementById('osmd-container').style.transform = 'none';
+    applyZoomForMode();
+    osmd.render();
+    syncNoteheadElements();
+    lastScrolledSystem = -1;
+    currentIndex = 0;
+    satisfiedInStep = new Set();
+    correct = 0; wrong = 0;
+    updateStats();
+    highlightExpected();
+  }
+}
+
+document.getElementById('modeRhythmBtn').addEventListener('click', () => setMode('rhythm'));
+document.getElementById('modeClassicBtn').addEventListener('click', () => setMode('classic'));
+document.getElementById('resetRhythmBtn').addEventListener('click', () => { if (currentMode === 'rhythm') resetRhythm(); else setMode('classic'); });
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  updateSpeedFromSlider(Number(e.target.value));
+});
+updateSpeedFromSlider(Number(document.getElementById('speedSlider').value));
+
+// MIDI: цвет кнопки зависит от фактического подключения устройства.
+const connectMidiBtn = document.getElementById('connectBtn');
+let currentMidiAccess = null;
+function updateMidiButton(){
+  const connected = !!currentMidiAccess && Array.from(currentMidiAccess.inputs.values()).some(i => i.state === 'connected');
+  connectMidiBtn.textContent = connected ? 'MIDI подключено' : 'Подключить MIDI';
+  connectMidiBtn.classList.toggle('connected', connected);
+}
+const lastMidiNoteOnAt = new Map();
+function attachMidiInput(input){
+  if (input.onmidimessage) return;
+  input.onmidimessage = (msg) => {
+    const [status, note, velocity] = msg.data;
+    const isNoteOn = (status & 0xf0) === 0x90 && velocity > 0;
+    const isNoteOff = (status & 0xf0) === 0x80 || ((status & 0xf0) === 0x90 && velocity === 0);
+    if (isNoteOn){
+      const now = performance.now();
+      const prev = lastMidiNoteOnAt.get(note);
+      if (prev !== undefined && now - prev < 40) return;
+      lastMidiNoteOnAt.set(note, now);
+      handleNoteOn(note);
+    } else if (isNoteOff) handleNoteOff(note);
+  };
+}
+// Web MIDI
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (!navigator.requestMIDIAccess){
+    statusEl.textContent = 'Этот браузер не поддерживает Web MIDI API. Попробуй Chrome или Edge.';
+    statusEl.className='bad';
+    return;
+  }
+  try{
+    const access = await navigator.requestMIDIAccess();
+    currentMidiAccess = access;
+    access.onstatechange = () => {
+      Array.from(access.inputs.values()).filter(i => i.state === 'connected').forEach(attachMidiInput);
+      updateMidiButton();
+    };
+    const inputs = Array.from(access.inputs.values()).filter(i => i.state === 'connected');
+    inputs.forEach(attachMidiInput);
+    updateMidiButton();
+    if (inputs.length === 0){
+      statusEl.textContent = 'MIDI-устройства не найдены. Подключи клавиатуру и попробуй снова.';
+      statusEl.className='bad';
+      return;
+    }
+    statusEl.textContent = `Подключено: ${inputs.map(i=>i.name).join(', ')}. `;
+    statusEl.className='ok';
+    setTimeout(highlightExpected, 800);
+  } catch(e){
+    statusEl.textContent = 'Не удалось получить доступ к MIDI: ' + e.message;
+    statusEl.className='bad';
+  }
+});
+
+
+
+document.getElementById('fullscreenBtn').addEventListener('click', async () => {
+  try{
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+  }catch(e){console.warn('Полноэкранный режим недоступен:',e);}
+});
+
+window.addEventListener('load', () => {
+  renderScore().catch(err => {
+    document.getElementById('osmd-container').innerHTML =
+      '<div style="color:#b8462f;font-family:Arial;padding:10px;">Ошибка при отрисовке нот: '+err.message+
+      '</div>';
+    console.error(err);
+  });
+});
+</script>
+</body>
+</html>
