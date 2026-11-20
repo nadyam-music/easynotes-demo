@@ -188,6 +188,9 @@ button:hover,.file-upload:hover{background:#f0e1de;color:#513e3a;border-color:#b
 .rhythm-controls{flex-direction:column;align-items:stretch;gap:10px;margin:0 0 12px}.rhythm-controls label{display:flex;flex-direction:column;gap:6px}.rhythm-controls input[type=range]{width:100%;accent-color:#a96f75}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.card{padding:10px 4px;text-align:center;border:1px solid var(--line);border-radius:9px;background:#fffaf7}.card b{font-size:10px;color:#8a746d}.card .val{font-size:22px}.val.right{color:var(--right)}.val.wrong{color:var(--wrong)}
 .sheet-area{min-width:0;min-height:0;display:flex;flex-direction:column;background:white}.sheet-title{height:39px;flex-shrink:0;padding:11px 20px;border-bottom:1px solid #e8dcd6;font-size:14px;color:#6c514b}
+#score-header{flex-shrink:0;display:none;padding:12px 20px 4px;text-align:center}
+#score-header .score-title{font-size:22px;font-weight:bold;color:#493a37;line-height:1.25}
+#score-header .score-author{font-size:13px;font-style:italic;color:#826e66;margin-top:3px}
 #scroll-viewport{flex:1;min-height:0;height:auto;width:100%;border:0;background:white;max-width:none}
 #scroll-viewport.classic-mode{flex:1;min-height:0;max-width:none;height:auto;overflow:auto}
 #scroll-viewport.classic-mode #osmd-container{max-width:none}
@@ -234,7 +237,7 @@ button:hover,.file-upload:hover{background:#f0e1de;color:#513e3a;border-color:#b
 <section class="control-section"><button class="restart-fragment-btn" id="resetRhythmBtn">⟲ Начать заново</button></section>
 <section class="control-section"><div class="rhythm-controls" id="rhythmControls" style="display:none;"><label>Скорость <input id="speedSlider" max="10" min="1" type="range" value="5"/></label><span class="section-help">Медленнее — Быстрее</span></div><div class="stats"><div class="card"><b>Верно</b><div class="val right" id="correctCount">0</div></div><div class="card"><b>Ошибки</b><div class="val wrong" id="wrongCount">0</div></div><div class="card"><b>Точность</b><div class="val" id="accuracy">—</div></div></div></section>
 </aside>
-<main class="sheet-area"><div id="scroll-viewport"><div id="playhead-line"></div><div id="osmd-container"></div><div id="library-welcome"><div class="welcome-message">Чтобы начать, выберите пьесу из библиотеки</div></div></div></main>
+<main class="sheet-area"><div id="score-header"><div class="score-title" id="scoreTitle"></div><div class="score-author" id="scoreAuthor"></div></div><div id="scroll-viewport"><div id="playhead-line"></div><div id="osmd-container"></div><div id="library-welcome"><div class="welcome-message">Чтобы начать, выберите пьесу из библиотеки</div></div></div></main>
 </div>
 <div id="status" role="status">Ожидаю MIDI-устройство… Нажми «Подключить MIDI» и разреши доступ браузеру.</div>
 <script>
@@ -266,6 +269,22 @@ const openFolders = new Set();      // какие папки сейчас рас
 
 function setCurrentPieceLabel(text){
   currentPieceLabel.textContent = text ? 'Сейчас: ' + text : '';
+}
+
+// Заголовок над нотным текстом (одинаковый в обоих режимах): название пьесы
+// и имя автора, взятое из MusicXML (<creator type="composer">), если оно есть.
+function composerFromXML(xml){
+  try{
+    const m = xml.match(/<creator[^>]*type="composer"[^>]*>([^<]+)<\/creator>/i)
+           || xml.match(/<creator[^>]*>([^<]+)<\/creator>/i);
+    return m ? m[1].trim() : '';
+  }catch(e){ return ''; }
+}
+function setScoreHeader(title, xml){
+  const header = document.getElementById('score-header');
+  document.getElementById('scoreTitle').textContent = title || '';
+  document.getElementById('scoreAuthor').textContent = composerFromXML(xml || '');
+  header.style.display = title ? 'block' : 'none';
 }
 
 function folderKeyOf(piece){
@@ -325,6 +344,10 @@ function selectPiece(i){
   currentPieceIndex = i;
   document.getElementById('scroll-viewport').classList.add('piece-loaded');
   setCurrentPieceLabel(piece.title);
+  setScoreHeader(piece.title, piece.xml);
+  try{ // запоминаем последнюю открытую пьесу, чтобы после перезагрузки открыть её же
+    localStorage.setItem('notelib_last_piece', JSON.stringify({ lesson: piece.lesson, title: piece.title }));
+  }catch(e){}
   libraryPanel.style.display = 'none'; // после выбора пьесы список сворачивается, чтобы были видны ноты
   renderLibraryTree();
   loadExercise(piece.xml).catch(err => {
@@ -459,6 +482,7 @@ async function renderScore(){
   osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay('osmd-container', {
     drawTitle:false,
     drawPartNames:false, // убирает подпись "Piano" перед акколадой и освобождает от неё место
+    drawComposer:false, // автор теперь в нашем заголовке над партитурой — без дубля внутри нот
     followCursor:true
   });
   // Поля страницы поменьше — в единицах OSMD (≈10 px = 1 unit при zoom=1)
@@ -559,11 +583,18 @@ function autoScrollToCurrentSystem(){
   if (top === Infinity) return;
 
   const margin = 40;
-  if (top >= margin && bottom <= window.innerHeight - margin) return; // строка и так целиком видна
+  const viewport = document.getElementById('scroll-viewport');
+  const vpTop = viewport.getBoundingClientRect().top;
+  const localTop = top - vpTop;      // координаты строки внутри видимой области viewport
+  const localBottom = bottom - vpTop;
+  if (localTop >= margin && localBottom <= viewport.clientHeight - margin) return; // строка и так целиком видна
 
-  // абсолютная позиция (а не относительный сдвиг) — повторный вызов во время плавной прокрутки безвреден
-  const docCenter = (top + bottom) / 2 + window.scrollY;
-  window.scrollTo({ top: Math.max(0, docCenter - window.innerHeight / 2), behavior: 'smooth' });
+  // Прокручиваем сам viewport: в классическом режиме скроллится именно он
+  // (у body overflow:hidden, поэтому window.scrollTo ничего бы не сделал).
+  // Абсолютная позиция (а не относительный сдвиг) — повторный вызов во время
+  // плавной прокрутки безвреден.
+  const center = (localTop + localBottom) / 2 + viewport.scrollTop;
+  viewport.scrollTo({ top: Math.max(0, center - viewport.clientHeight / 2), behavior: 'smooth' });
 }
 
 // Звуковой сигнал на неверную ноту — короткий резкий тон через Web Audio API
@@ -582,7 +613,32 @@ function playTone(freq, duration, type){
     osc.stop(audioCtx.currentTime + duration);
   } catch(e){ /* Web Audio недоступен — просто без звука */ }
 }
-function playErrorSound(){ playTone(180, 0.22, 'square'); }
+// Звук ошибки — мягкое нисходящее «у-уп» (Ми4 → До4), тот же, что в тренажёрах курса.
+// Библиотека работает только через MIDI, поэтому всегда громкий вариант:
+// фундамент — треугольная волна (обертоны пробиваются сквозь звучание пианино),
+// сверху октава (Ми5/До5). Атака октавы смещена на 0.02с позже фундамента —
+// пики слоёв не совпадают: при громкости 0.9 мгновенный максимум ≈ 0.9, без клиппинга.
+function playErrorSound(){
+  try{
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    const v = 0.9;
+    [[64, 0], [60, 0.13], [76, 0], [72, 0.13]].forEach(([midi, dt], idx)=>{
+      const isOct = idx >= 2;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = isOct ? 'sine' : 'triangle';
+      osc.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+      gain.gain.setValueAtTime(0.0001, t0+dt);
+      gain.gain.exponentialRampToValueAtTime(isOct ? v*0.31 : v, t0+dt + (isOct ? 0.04 : 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0+dt + (isOct ? 0.21 : 0.24));
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0+dt);
+      osc.stop(t0+dt + (isOct ? 0.23 : 0.26));
+    });
+  } catch(e){ /* Web Audio недоступен — просто без звука */ }
+}
 // Отдельный, более мягкий сигнал на "рано нажал" — чтобы не путать с ошибкой в ноте
 function playEarlySound(){ playTone(320, 0.12, 'sine'); }
 
@@ -1005,7 +1061,22 @@ document.getElementById('fullscreenBtn').addEventListener('click', async () => {
 });
 
 window.addEventListener('load', () => {
-  renderScore().catch(err => {
+  renderScore().then(() => {
+    // Применяем класс режима к viewport сразу при старте: кнопка «Вся пьеса»
+    // активна по умолчанию, но без setMode() viewport оставался без классов,
+    // партитура рендерилась в горизонтальной «ритмовой» раскладке (6000px,
+    // одна строка), и автопрокрутка в классическом режиме не работала.
+    setMode(currentMode);
+    // Восстанавливаем последнюю открытую пьесу (запоминается в localStorage
+    // при каждом выборе), чтобы после перезагрузки страница открывалась на том же месте.
+    if (!osmd) return;
+    try{
+      const saved = JSON.parse(localStorage.getItem('notelib_last_piece') || 'null');
+      if (!saved) return;
+      const idx = pieceLibrary.findIndex(p => p.lesson === saved.lesson && p.title === saved.title);
+      if (idx !== -1) selectPiece(idx);
+    }catch(e){ /* повреждённая запись — просто открываем без пьесы */ }
+  }).catch(err => {
     document.getElementById('osmd-container').innerHTML =
       '<div style="color:#b8462f;font-family:Arial;padding:10px;">Ошибка при отрисовке нот: '+err.message+
       '</div>';
